@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#e8743b">
+  <meta name="description" content="Market Manager — a bright isometric neighborhood market management game.">
+  <title>Market Manager</title>
+  <link rel="stylesheet" href="./css/style.css">
+  <script type="importmap">
+    { "imports": { "three": "./lib/three.module.min.js" } }
+  </script>
+</head>
+<body>
+  <header class="app-header">
+    <a class="skip-link" id="skip-link" href="#app">Skip to game</a>
+    <p class="app-title" aria-hidden="true">Market Manager</p>
+  </header>
+
+  <main id="app" role="main">
+    <!-- Three.js mount. Purely visual; the DOM mirror is the accessible play path. -->
+    <div id="scene-host" aria-hidden="true" hidden></div>
+
+    <div id="ui-overlay">
+
+      <!-- Title -->
+      <section class="screen" data-screen="title" aria-labelledby="title-heading" hidden>
+        <div class="panel title-panel">
+          <h1 id="title-heading">Market Manager</h1>
+          <p class="tagline">Stock the shelves. Serve the rush. Grow the corner market.</p>
+          <p id="daily-chip" class="chip" hidden>
+            Daily market: <span id="daily-date"></span> · <span id="daily-countdown"></span>
+          </p>
+          <p id="journey-progress-summary" class="muted"></p>
+          <div class="stack">
+            <button id="btn-play" class="btn btn-primary btn-big" type="button">Play</button>
+            <button id="btn-daily" class="btn" type="button">Daily market</button>
+            <button id="btn-modes" class="btn" type="button">All modes</button>
+            <div class="row">
+              <button id="btn-help-title" class="btn btn-ghost" type="button">How to play</button>
+              <button id="btn-settings-title" class="btn btn-ghost" type="button">Settings</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Mode select -->
+      <section class="screen" data-screen="mode-select" aria-labelledby="modes-heading" hidden>
+        <div class="panel panel-wide">
+          <h2 id="modes-heading" tabindex="-1">Choose a mode</h2>
+          <div id="mode-cards" class="card-grid"></div>
+          <button class="btn btn-ghost btn-back" type="button" data-back>Back</button>
+        </div>
+      </section>
+
+      <!-- Stage select -->
+      <section class="screen" data-screen="stage-select" aria-labelledby="stage-heading" hidden>
+        <div class="panel panel-wide">
+          <h2 id="stage-heading" tabindex="-1">Stages</h2>
+          <div id="stage-list" class="stage-grid" role="list"></div>
+          <button class="btn btn-ghost btn-back" type="button" data-back>Back</button>
+        </div>
+      </section>
+
+      <!-- Setup -->
+      <section class="screen" data-screen="setup" aria-labelledby="setup-heading" hidden>
+        <div class="panel">
+          <h2 id="setup-heading" tabindex="-1">Shift briefing</h2>
+          <p id="setup-summary" class="lead"></p>
+          <p id="setup-blurb" class="muted"></p>
+          <ul id="setup-goals" class="goal-list"></ul>
+          <dl class="fact-list">
+            <div><dt>Expected length</dt><dd id="setup-duration"></dd></div>
+            <div><dt>Rules</dt><dd id="setup-rules"></dd></div>
+            <div><dt>Standing</dt><dd id="setup-ranked"></dd></div>
+          </dl>
+          <div class="row">
+            <button id="btn-start" class="btn btn-primary" type="button">Start shift</button>
+            <button class="btn btn-ghost btn-back" type="button" data-back>Back</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Game HUD -->
+      <section class="screen screen-game" data-screen="game" aria-labelledby="game-heading" hidden>
+        <h2 id="game-heading" class="visually-hidden">Market floor</h2>
+
+        <div class="hud-top">
+          <div class="hud-objective">
+            <p id="hud-objective" class="objective-text" aria-live="polite"></p>
+            <p id="hud-moves" class="chip" hidden></p>
+          </div>
+          <div class="hud-stats" role="status" aria-label="Market status">
+            <span class="stat"><span class="stat-label">Coins</span> <span id="hud-money">0</span></span>
+            <span class="stat"><span class="stat-label">Time</span> <span id="hud-time">0:00</span></span>
+            <span class="stat"><span class="stat-label">Guests</span> <span id="hud-served">0</span></span>
+            <span class="stat"><span class="stat-label">Score</span> <span id="hud-score" aria-live="polite">0</span></span>
+          </div>
+          <div class="hud-actions">
+            <button id="btn-undo" class="btn btn-icon" type="button" aria-label="Undo last action" hidden>
+              <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M9 5 3 10l6 5v-3h5a4 4 0 0 1 0 8H8v2h6a6 6 0 0 0 0-12H9z" fill="currentColor"/></svg>
+            </button>
+            <button id="btn-hint" class="btn btn-icon" type="button" aria-label="Show a hint">
+              <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M12 3a6 6 0 0 0-4 10.5c.8.7 1 1.5 1 2.5h6c0-1 .2-1.8 1-2.5A6 6 0 0 0 12 3zm-3 15h6v1a2 2 0 0 1-2 2h-2a2 2 0 0 1-2-2z" fill="currentColor"/></svg>
+            </button>
+            <button id="btn-staff-toggle" class="btn btn-icon" type="button" aria-label="Toggle staff panel" aria-expanded="false">
+              <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><circle cx="9" cy="8" r="3.2" fill="currentColor"/><path d="M3.5 19c0-3 2.5-5 5.5-5s5.5 2 5.5 5z" fill="currentColor"/><circle cx="17" cy="9" r="2.4" fill="currentColor"/><path d="M14.5 19c.2-2.4 1.9-4.2 4-4.2 1.6 0 3 1.1 3.4 4.2z" fill="currentColor"/></svg>
+            </button>
+            <button id="btn-pause" class="btn btn-icon" type="button" aria-label="Pause game">
+              <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><rect x="6" y="4" width="4" height="16" rx="1" fill="currentColor"/><rect x="14" y="4" width="4" height="16" rx="1" fill="currentColor"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <p id="tutorial-banner" class="tutorial-banner" aria-live="polite" hidden></p>
+
+        <aside id="context-panel" class="drawer context-panel" aria-label="Selection actions" hidden></aside>
+        <aside id="staff-panel" class="drawer staff-panel" aria-label="Staff" hidden></aside>
+
+        <!-- Screen-reader / keyboard board mirror: the full non-canvas play path. -->
+        <div id="board-mirror" class="board-mirror" aria-live="polite"></div>
+        <nav id="mirror-list" class="visually-hidden" aria-label="Market entities"></nav>
+      </section>
+
+      <!-- Pause -->
+      <section class="screen screen-overlay" data-screen="pause" aria-labelledby="pause-heading" hidden>
+        <div class="panel">
+          <h2 id="pause-heading" tabindex="-1">Paused</h2>
+          <p id="pause-away-note" class="muted" hidden></p>
+          <div class="stack">
+            <button id="btn-resume" class="btn btn-primary" type="button">Resume</button>
+            <button id="btn-pause-help" class="btn" type="button">How to play</button>
+            <button id="btn-pause-settings" class="btn" type="button">Settings</button>
+            <button id="btn-quit" class="btn btn-ghost" type="button">End shift</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Results -->
+      <section class="screen" data-screen="results" aria-labelledby="results-heading" hidden>
+        <div class="panel panel-wide">
+          <h2 id="results-heading" tabindex="-1" aria-live="assertive"></h2>
+          <p id="results-reason" class="lead"></p>
+          <table class="score-table">
+            <caption class="visually-hidden">Score breakdown</caption>
+            <tbody id="results-table"></tbody>
+            <tfoot><tr><th scope="row">Total</th><td id="results-total">0</td></tr></tfoot>
+          </table>
+          <p id="results-tiebreak" class="muted"></p>
+          <p id="results-best" class="chip" hidden></p>
+          <ul id="results-achievements" class="achievement-list" aria-live="polite"></ul>
+          <div class="row">
+            <button id="btn-retry" class="btn btn-primary" type="button">Retry</button>
+            <button id="btn-next" class="btn" type="button" hidden>Next</button>
+            <button id="btn-results-modes" class="btn btn-ghost" type="button">Mode select</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Help -->
+      <section class="screen" data-screen="help" aria-labelledby="help-heading" hidden>
+        <div class="panel panel-wide">
+          <h2 id="help-heading" tabindex="-1">How to play</h2>
+          <div id="help-cards" class="card-grid"></div>
+          <button id="btn-help-close" class="btn btn-ghost" type="button">Close</button>
+        </div>
+      </section>
+
+      <!-- Settings -->
+      <section class="screen" data-screen="settings" aria-labelledby="settings-heading" hidden>
+        <div class="panel panel-wide">
+          <h2 id="settings-heading" tabindex="-1">Settings</h2>
+          <form id="settings-form">
+            <fieldset>
+              <legend>Sound</legend>
+              <label>Music <input id="set-music" type="range" min="0" max="1" step="0.05"></label>
+              <label>Effects <input id="set-effects" type="range" min="0" max="1" step="0.05"></label>
+              <label>Ambience <input id="set-ambience" type="range" min="0" max="1" step="0.05"></label>
+              <label>Voice <input id="set-voice" type="range" min="0" max="1" step="0.05"></label>
+            </fieldset>
+            <fieldset>
+              <legend>Display</legend>
+              <label>Quality
+                <select id="set-quality">
+                  <option value="auto">Auto</option>
+                  <option value="low">Low</option>
+                  <option value="medium">Medium</option>
+                  <option value="high">High</option>
+                </select>
+              </label>
+              <label>Theme
+                <select id="set-theme">
+                  <option value="">Stage default</option>
+                </select>
+              </label>
+              <label>Camera
+                <select id="set-camera">
+                  <option value="isometric">Isometric</option>
+                  <option value="high">High</option>
+                  <option value="low">Low</option>
+                </select>
+              </label>
+              <label>Color vision
+                <select id="set-colorblind">
+                  <option value="none">Standard</option>
+                  <option value="deuteranopia">Deuteranopia-safe</option>
+                  <option value="protanopia">Protanopia-safe</option>
+                  <option value="tritanopia">Tritanopia-safe</option>
+                </select>
+              </label>
+            </fieldset>
+            <fieldset>
+              <legend>Accessibility and controls</legend>
+              <label class="check"><input id="set-reduced-motion" type="checkbox"> Reduced motion</label>
+              <label class="check"><input id="set-high-contrast" type="checkbox"> High contrast</label>
+              <label class="check"><input id="set-large-text" type="checkbox"> Larger text</label>
+              <label class="check"><input id="set-left-handed" type="checkbox"> Left-handed layout</label>
+              <label class="check"><input id="set-hold-confirm" type="checkbox"> Hold to confirm actions</label>
+              <label class="check"><input id="set-timing-assist" type="checkbox"> Timing assist</label>
+              <label class="check"><input id="set-haptics" type="checkbox"> Haptics</label>
+              <label class="check"><input id="set-analytics" type="checkbox"> Share anonymous usage stats</label>
+            </fieldset>
+            <div class="row">
+              <button id="btn-replay-tutorials" class="btn" type="button">Replay tutorials</button>
+              <button id="btn-settings-close" class="btn btn-ghost" type="button">Close</button>
+            </div>
+          </form>
+        </div>
+      </section>
+
+      <!-- WebGL fallback -->
+      <section class="screen" id="compat-fallback" data-screen="compat" aria-labelledby="compat-heading" hidden>
+        <div class="panel">
+          <h2 id="compat-heading" tabindex="-1">3D view unavailable</h2>
+          <p class="lead">This browser could not start WebGL, so the 3D market view is off.
+            The full game still works through the on-screen buttons — every action has a text control.</p>
+          <div class="row">
+            <button id="btn-compat-continue" class="btn btn-primary" type="button">Continue anyway</button>
+            <button id="btn-compat-help" class="btn btn-ghost" type="button">How to play</button>
+          </div>
+        </div>
+      </section>
+
+    </div>
+
+    <!-- Transient layers -->
+    <div id="countdown" class="countdown" aria-live="assertive" hidden></div>
+    <div id="toasts" class="toasts" aria-hidden="true"></div>
+    <div id="live-announcer" class="visually-hidden" aria-live="polite"></div>
+    <div id="live-alerts" class="visually-hidden" aria-live="assertive"></div>
+  </main>
+
+  <footer class="app-footer">
+    <p>Market Manager — an original neighborhood market game. Plays offline.</p>
+  </footer>
+
+  <script type="module" src="./src/main.js"></script>
+</body>
+</html>

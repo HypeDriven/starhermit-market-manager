@@ -1,0 +1,11 @@
+{
+  "name": "market-manager",
+  "version": "1.0.0",
+  "type": "module",
+  "private": true,
+  "description": "Market Manager — a bright isometric neighborhood market management game.",
+  "scripts": {
+    "test": "node tests/rules.test.mjs",
+    "start": "node server.js 8080"
+  }
+}
