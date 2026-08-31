@@ -1,0 +1,80 @@
+[
+  {
+    "name": "spawn",
+    "seconds": 1,
+    "prompt": "A soft hollow pop like a small cork gently leaving a bottle, friendly and rounded, announcing someone stepping into a shop.",
+    "event": "spawn"
+  },
+  {
+    "name": "take",
+    "seconds": 1,
+    "prompt": "A quick plasticky pick-up pop, like plucking a small packaged item off a store shelf, short and snappy.",
+    "event": "take"
+  },
+  {
+    "name": "restock",
+    "seconds": 1,
+    "prompt": "A wooden crate being set down on a shop floor with a solid thud and a light rattle of canned goods settling inside.",
+    "event": "restock"
+  },
+  {
+    "name": "served",
+    "seconds": 1,
+    "prompt": "A bright cash register chime with two clear metallic coin dings, like coins dropping into a till after a sale.",
+    "event": "served"
+  },
+  {
+    "name": "left-angry",
+    "seconds": 2,
+    "prompt": "A low irritated grumble, an annoyed customer huffing sharply and storming off with brisk footsteps fading out.",
+    "event": "left-angry"
+  },
+  {
+    "name": "left-empty",
+    "seconds": 1,
+    "prompt": "A soft disappointed descending tick, like a small sigh and the light tap of a finger on an empty shelf.",
+    "event": "left-empty"
+  },
+  {
+    "name": "hire",
+    "seconds": 1,
+    "prompt": "A cheerful rubber-stamp thump on paper followed by a short welcoming chime, like signing a new employee contract.",
+    "event": "hire"
+  },
+  {
+    "name": "upgrade",
+    "seconds": 1,
+    "prompt": "A rising metallic ratchet click, like a wrench tightening a bolt, finishing with a bright satisfying ding.",
+    "event": "upgrade"
+  },
+  {
+    "name": "unlock",
+    "seconds": 2,
+    "prompt": "A brass key turning in a padlock with a clunk, then a bright sparkle chime as something new opens up.",
+    "event": "unlock"
+  },
+  {
+    "name": "won",
+    "seconds": 3,
+    "prompt": "A short celebratory fanfare of bright brass and bells rising to a joyful final chord, like a shop celebration.",
+    "event": "won"
+  },
+  {
+    "name": "lost",
+    "seconds": 3,
+    "prompt": "A gentle descending phrase of soft mellow marimba tones, wistful and quiet, like closing up shop at night.",
+    "event": "lost"
+  },
+  {
+    "name": "error",
+    "seconds": 1,
+    "prompt": "A short dull double buzz, like a denied button press on an old cash register, flat and unmusical.",
+    "event": "error"
+  },
+  {
+    "name": "ui-click",
+    "seconds": 1,
+    "prompt": "A very short clean interface tap, like pressing a soft rubber button on a payment terminal, crisp and quiet.",
+    "event": "uiClick"
+  }
+]

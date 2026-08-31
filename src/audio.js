@@ -18,6 +18,26 @@ const EVENT_MAP = {
   unlock: 'confirm',
 };
 
+// Authored one-shot samples (sfx/<name>.opus, see sfx/manifest.json) keyed by
+// event path: playEvent switch cases, EVENT_MAP kinds, and the uiClick method.
+// A ready sample is preferred; synthesis below runs while it loads or on
+// failure, so the game is silent never and the .opus files stay optional.
+const SFX_MAP = {
+  spawn: 'spawn',
+  take: 'take',
+  restock: 'restock',
+  served: 'served',
+  'left-angry': 'left-angry',
+  'left-empty': 'left-empty',
+  hire: 'hire',
+  upgrade: 'upgrade',
+  unlock: 'unlock',
+  won: 'won',
+  lost: 'lost',
+  error: 'error',
+  uiClick: 'ui-click',
+};
+
 export function createAudio(settings = {}) {
   let ctx = null;
   let buses = null;
@@ -37,6 +57,7 @@ export function createAudio(settings = {}) {
   let musicIntensity = 0;
   let ambienceNodes = null;
   let onVisChange = null;
+  const sampleCache = new Map(); // basename -> { state: 'loading'|'ready'|'failed', buffer }
 
   function num(v, d) { return typeof v === 'number' ? Math.min(1, Math.max(0, v)) : d; }
 
@@ -96,6 +117,44 @@ export function createAudio(settings = {}) {
     if (ctx) ctx.close().catch(() => {});
     ctx = null;
     buses = null;
+    sampleCache.clear();
+  }
+
+  // ---------------------------------------------------- authored samples
+  // Lazy fetch/decode/cache of sfx/<name>.opus. Only runs after unlock(),
+  // so the first fetch always follows a user gesture; nothing autoplays.
+  function loadSample(name) {
+    let entry = sampleCache.get(name);
+    if (entry) return entry;
+    entry = { state: 'loading', buffer: null };
+    sampleCache.set(name, entry);
+    if (typeof fetch !== 'function' || !ctx) { entry.state = 'failed'; return entry; }
+    fetch(`./sfx/${name}.opus`)
+      .then((r) => {
+        if (!r.ok) throw new Error(`sfx ${name}: http ${r.status}`);
+        return r.arrayBuffer();
+      })
+      .then((ab) => {
+        if (!ctx) throw new Error('disposed');
+        return ctx.decodeAudioData(ab);
+      })
+      .then((buf) => { entry.state = 'ready'; entry.buffer = buf; })
+      .catch(() => { entry.state = 'failed'; });
+    return entry;
+  }
+
+  // Play a cached sample through the effects bus (which carries the current
+  // effects volume/mute). Returns false while loading or after failure so
+  // the caller falls back to synthesis; each event plays exactly one sound.
+  function playSample(name) {
+    if (!ctx || !unlocked || !buses) return false;
+    const entry = loadSample(name);
+    if (entry.state !== 'ready') return false;
+    const src = ctx.createBufferSource();
+    src.buffer = entry.buffer;
+    src.connect(buses.effects);
+    src.start();
+    return true;
   }
 
   // ------------------------------------------------------------- volumes
@@ -153,6 +212,7 @@ export function createAudio(settings = {}) {
   // -------------------------------------------------------------- events
   function playEvent(name) {
     if (!ctx || !unlocked) return;
+    if (SFX_MAP[name] && playSample(SFX_MAP[name])) return;
     switch (name) {
       case 'spawn': // soft blip
         tone('effects', { freq: variant(520), dur: 0.09, type: 'sine', gain: 0.08 });
@@ -205,6 +265,9 @@ export function createAudio(settings = {}) {
       if (ev.kind === 'terminal') {
         playEvent(ev.result === 'won' ? 'won' : 'lost');
       } else if (EVENT_MAP[ev.kind]) {
+        // Kinds like hire/upgrade/unlock share the 'confirm' synthesis but
+        // carry their own authored samples; try the kind first.
+        if (SFX_MAP[ev.kind] && playSample(SFX_MAP[ev.kind])) continue;
         playEvent(EVENT_MAP[ev.kind]);
       }
     }
@@ -212,6 +275,7 @@ export function createAudio(settings = {}) {
 
   function uiClick() {
     if (!ctx || !unlocked) return;
+    if (playSample(SFX_MAP.uiClick)) return;
     tone('effects', { freq: 660, dur: 0.05, type: 'triangle', gain: 0.1 });
   }
 
