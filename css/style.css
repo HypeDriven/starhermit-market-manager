@@ -53,7 +53,7 @@ html, body {
   line-height: 1.45;
 }
 
-body { min-height: 100dvh; display: flex; flex-direction: column; }
+body { height: 100dvh; overflow: hidden; display: flex; flex-direction: column; }
 
 /* ---------------------------------------------------------------- header */
 .app-header {
@@ -103,11 +103,13 @@ body { min-height: 100dvh; display: flex; flex-direction: column; }
 .screen {
   flex: 1;
   display: flex;
-  align-items: center;
-  justify-content: center;
+  align-items: flex-start;
+  justify-content: flex-start;
   padding: 16px;
   overflow-y: auto;
 }
+/* auto margins center short content but let tall content scroll */
+.screen > * { margin: auto; }
 .screen[hidden] { display: none; }
 .screen-overlay { background: rgba(61, 43, 31, 0.45); position: absolute; inset: 0; z-index: 20; }
 .screen-game { flex-direction: column; align-items: stretch; justify-content: flex-start; padding: 0; pointer-events: none; }
