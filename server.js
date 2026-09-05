@@ -8,7 +8,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import url from 'node:url';
 import { verifyReplay, computeScore, isTerminal } from './src/rules.js';
-import { dailyConfig, dailyDateUtc, journeyStage, challengeStages, CONTENT_VERSION } from './src/content.js';
+import { dailyConfig, dailyDateUtc, journeyStage, practiceConfig, challengeStages, CONTENT_VERSION } from './src/content.js';
 import { hashString } from './src/rng.js';
 
 const ROOT = path.dirname(url.fileURLToPath(import.meta.url));
@@ -75,26 +75,44 @@ function validateSubmission(envelope) {
   const cfg = envelope.config;
   if (!cfg || typeof cfg.id !== 'string') return { error: 'missing-config' };
 
-  // Daily board: config must match the immutable published day.
+  // Resolve the authoritative published config for this content. The client
+  // config is attacker-controlled, so the replay and the duration plausibility
+  // ceiling must both be validated against the server-built config
+  // (spec.md §2/§5), not the submitted one.
+  let authoritative;
   if (cfg.dailyDate) {
-    const published = dailyConfig(cfg.dailyDate);
-    if (cfg.id !== published.id || envelope.seed !== published.seed) return { error: 'seed-mismatch' };
-  } else if (!cfg.id.startsWith('j') && !KNOWN_STAGE_IDS.has(cfg.id) && !cfg.id.startsWith('practice-')) {
+    authoritative = dailyConfig(cfg.dailyDate);
+    if (cfg.id !== authoritative.id || envelope.seed !== authoritative.seed) {
+      return { error: 'seed-mismatch' };
+    }
+  } else if (cfg.id.startsWith('j')) {
+    authoritative = journeyStage(cfg.id);
+    if (!authoritative) return { error: 'unknown-content' };
+    if (envelope.seed !== authoritative.seed) return { error: 'seed-mismatch' };
+  } else if (cfg.id.startsWith('practice-')) {
+    try { authoritative = practiceConfig(cfg.id.slice('practice-'.length)); }
+    catch { return { error: 'unknown-content' }; }
+    if (envelope.seed !== authoritative.seed) return { error: 'seed-mismatch' };
+  } else if (KNOWN_STAGE_IDS.has(cfg.id)) {
+    authoritative = challengeStages().find((c) => c.id === cfg.id);
+    if (envelope.seed !== authoritative.seed) return { error: 'seed-mismatch' };
+  } else {
     return { error: 'unknown-content' };
   }
 
-  // Re-simulate the replay deterministically.
+  // Re-simulate the replay deterministically against the authoritative config.
+  const replayed = { ...envelope, config: authoritative };
   let verdict;
   try {
-    verdict = verifyReplay(envelope);
+    verdict = verifyReplay(replayed);
   } catch {
     return { error: 'replay-unverifiable' };
   }
   if (!verdict.ok) return { error: 'replay-mismatch', detail: verdict.failures.slice(0, 3) };
   if (!isTerminal({ phase: verdict.phase })) return { error: 'not-terminal' };
 
-  // Plausibility: duration within an order of magnitude of simulated ticks.
-  const ticks = envelope.config.maxTicks;
+  // Plausibility: duration within an order of magnitude of published ticks.
+  const ticks = authoritative.maxTicks;
   const ms = envelope.durationMs || 0;
   if (ms < 1000 || ms > ticks * 500 * 20) return { error: 'implausible-duration' };
 

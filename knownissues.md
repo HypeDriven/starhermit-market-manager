@@ -2,6 +2,7 @@
 
 QA pass 2026-08-20. Static review driven by Qwen3.8 27B on `worker186` (HauhauCS Q3_K_P, 16k ctx),
 alongside the game's own unit tests and live probing of the running server in headless Chrome.
+Re-verification pass 2026-09-05 fixed the four confirmed defects below (see **Resolved defects**).
 
 ## Test results
 
@@ -9,112 +10,54 @@ alongside the game's own unit tests and live probing of the running server in he
 | --- | --- |
 | `npm test` (`node tests/rules.test.mjs`) | 67/67 pass, 0 failures |
 | `node --check` on all modules (`src/*.js`, `server.js`, `tests/rules.test.mjs`) | clean |
-| `tests/e2e.mjs` | not present |
+| `tests/e2e.mjs` (`npm run test:e2e`, desktop + mobile) | PASS — both playthroughs complete, 0 page errors |
 | Headless-Chrome boot + interaction (served on :39405) | Boots to title and into the mode picker; only console error is a `404 /favicon.ico` |
 | API fuzzing (`/api/v1/*`, malformed bodies, malformed percent-escapes) | server stayed up |
 | Corrupt-`localStorage` sweep (8 corruptions × 1 key, reload each time) | PASS — no page errors, game still renders every time |
 | Rapid-input + resize stress (90 key presses, 40 clicks, 5 viewport changes, 8 pause toggles) | PASS — 0 console errors |
 
-## Confirmed defects
+## Resolved defects
 
-Defects 1 and 2 were reproduced end to end against the running server on port 39405.
+Fixes from the 2026-09-05 re-verification pass. All four were confirmed still present in the
+pre-fix source, then fixed and re-verified (see the per-item verification notes).
 
-### 1. Score submissions are replayed against the *client's* config — arbitrary score inflation on the daily board
+### 1. Score submissions are replayed against the *client's* config — arbitrary score inflation on the daily board — RESOLVED
 
-- **File:** `server.js:69` (`validateSubmission`) together with `src/rules.js:695` (`verifyReplay`)
-- **Trigger:** POST `/api/v1/scores` with the published daily `id` and `seed`, but any other config
-  field changed.
-- **Behaviour:** for a daily submission the server compares exactly two fields:
+- **Fix:** `server.js:78-104` (`validateSubmission`). The server now resolves the authoritative
+  published config for the submitted content and replays against *that* rather than the submitted
+  `envelope.config`:
+  - daily → `dailyConfig(cfg.dailyDate)`; journey (`j…`) → `journeyStage(cfg.id)`;
+    practice (`practice-…`) → `practiceConfig(...)`; challenge → the matching `CHALLENGES` entry.
+    Any id that does not resolve to real published content returns `unknown-content`.
+  - Each resolved config's own `seed` must equal `envelope.seed`, otherwise `seed-mismatch`.
+  - `verifyReplay` runs against `{ ...envelope, config: authoritative }`, so `createGame`
+    builds the world from published fields (`startingMoney`, `map`, `departments`, `goals`,
+    `maxTicks`, …) and the inflation vector is closed.
+- **Verification:** tampered daily (`startingMoney` +5,000,000) accepted but scored identically to
+  the honest run (both 3033) instead of +5,000,000 — no inflation. Fabricated journey id
+  `j-does-not-exist-9999` → `422 unknown-content`.
 
-  ```js
-  if (cfg.dailyDate) {
-    const published = dailyConfig(cfg.dailyDate);
-    if (cfg.id !== published.id || envelope.seed !== published.seed) return { error: 'seed-mismatch' };
-  }
-  ```
+### 2. Journey / practice content ids are accepted without existing — RESOLVED
 
-  and `verifyReplay` then builds the world from the submitted object:
+- **Fix:** `server.js:88-100`. `journeyStage(cfg.id)` / `practiceConfig(...)` are now called (the
+  import was previously unused); unknown journey stages and unparseable practice difficulties
+  return `422 unknown-content`. Only real content resolves to an authoritative config.
+- **Verification:** `POST` with `config.id = 'j-does-not-exist-9999'` → `422 {"error":"unknown-content"}`.
 
-  ```js
-  let state = createGame(envelope.config);
-  ```
+### 3. The duration plausibility ceiling is set by the submitter — RESOLVED
 
-  Nothing else in `published` is compared — `startingMoney`, `map`, `departments`, `goals`, `maxTicks`
-  and the rest are all attacker-controlled. `createGame` copies `config.startingMoney` straight into
-  `state.money` (`src/rules.js:90`) and `computeScore` adds `reserves: state.money` to the total
-  (`src/rules.js:654`), so the inflation is direct and the replay stays internally consistent.
-- **Expected:** `spec.md` §2/§5 — the server must rebuild the authoritative config from published
-  content and validate the replay against *that*. `number-mahjong/server.js` in this same batch does
-  exactly that (`content = dailyContent(iso, …)` then `verifyReplay(replay, prepared, board)`).
-- **Evidence:** live reproduction —
+- **Fix:** `server.js:115` (`validateSubmission`). The ceiling is computed from the authoritative
+  config's `maxTicks` (`authoritative.maxTicks`), which is always present for published content, so
+  the upper bound can no longer be raised by a client-chosen `maxTicks` (nor become `NaN` when it is
+  omitted).
+- **Verification:** an honest replay posted with `durationMs` beyond the published ceiling
+  (240 × 500 × 20 = 2.4M) → `422 implausible-duration`; the same envelope's ceiling was unaffected
+  by a tampered client `maxTicks: 999999`.
 
-  ```
-  honest daily score:     30       (startingMoney = 120)
-  tampered daily score:   5000030  (startingMoney = 5000120)
-  POST honest -> 200 {"ok":true,"rank":1}
-  POST cheat  -> 200 {"ok":true,"rank":1}
-  leaderboard: [{"name":"qa-cheat","score":5000030,"date":"2026-08-20",...},
-                {"name":"qa-honest","score":30,...}]
-  ```
+### 4. `.mm-data/` — the server's default data directory — is not gitignored — RESOLVED
 
-### 2. Journey / practice content ids are accepted without existing
-
-- **File:** `server.js:80`
-- **Trigger:** POST `/api/v1/scores` with `config.id` set to any string beginning with `j`.
-- **Behaviour:**
-
-  ```js
-  } else if (!cfg.id.startsWith('j') && !KNOWN_STAGE_IDS.has(cfg.id) && !cfg.id.startsWith('practice-')) {
-    return { error: 'unknown-content' };
-  }
-  ```
-
-  `journeyStage` is imported at the top of the file but never called, so the id is never resolved
-  against real content. Combined with defect 1 the entire ruleset is fabricated.
-- **Expected:** `spec.md` §2 — "Represent content as versioned data … Run offline validators"; a board
-  entry must reference published content.
-- **Evidence:** live reproduction —
-
-  ```
-  fabricated journey score: 8999910   (config.id = 'j-does-not-exist-9999', startingMoney = 9000000)
-  POST -> 200 {"ok":true,"rank":1}
-  board: [{"name":"qa-fakejourney","score":8999910,"configId":"j-does-not-exist-9999",...}]
-  ```
-
-### 3. The duration plausibility ceiling is set by the submitter
-
-- **File:** `server.js:94-97` (`validateSubmission`)
-- **Trigger:** submit any envelope with a large `config.maxTicks`.
-- **Behaviour:**
-
-  ```js
-  const ticks = envelope.config.maxTicks;
-  const ms = envelope.durationMs || 0;
-  if (ms < 1000 || ms > ticks * 500 * 20) return { error: 'implausible-duration' };
-  ```
-
-  `ticks` is read from the client config, so the upper bound is whatever the client chose. If
-  `maxTicks` is omitted entirely the product is `NaN` and `ms > NaN` is always false — the upper bound
-  vanishes (the lower bound `ms < 1000` still applies).
-- **Expected:** the ceiling should come from the authoritative published config.
-- **Evidence:** source as quoted; independently flagged by the model review and confirmed by reading.
-  A companion effect of the missing `maxTicks` case is that `verifyReplay`'s
-  `maxIter = envelope.config.maxTicks + envelope.commands.length + 100` is also `NaN`, so the replay
-  loop runs zero iterations and the submission then fails the separate `not-terminal` check.
-
-### 4. `.mm-data/` — the server's default data directory — is not gitignored
-
-- **File:** `.gitignore` (lists `node_modules/`, `.local-data/`, `*.log`, `.DS_Store`) vs `server.js:15`
-  (`const DATA_DIR = process.env.MM_DATA_DIR || path.join(ROOT, '.mm-data');`)
-- **Trigger:** run `node server.js` once.
-- **Behaviour:** `fs.mkdirSync(DATA_DIR, { recursive: true })` runs at module load, so `.mm-data/`
-  appears as an untracked directory in the working tree and its `boards.json` (containing player names
-  and scores) is a commit candidate. The `.gitignore` entry that was clearly meant for this is
-  `.local-data/`, which nothing in the repo writes to.
-- **Expected:** the runtime data directory should be ignored.
-- **Evidence:** `git status --porcelain` → `?? .mm-data/` after a single server start.
-  Note: this QA pass started the server, so `.mm-data/boards.json` exists in the working tree and
-  contains the test entries described in defects 1-2. It has been left in place for central cleanup.
+- **Fix:** `.gitignore` — added `.mm-data/` (the directory `server.js:36` creates at module load).
+- **Verification:** `git status --porcelain` no longer lists `.mm-data/` after a server start.
 
 ## Suspected — not confirmed
 

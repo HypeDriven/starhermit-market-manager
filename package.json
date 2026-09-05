@@ -6,6 +6,10 @@
   "description": "Market Manager — a bright isometric neighborhood market management game.",
   "scripts": {
     "test": "node tests/rules.test.mjs",
+    "test:e2e": "node tests/e2e.mjs",
     "start": "node server.js 8080"
+  },
+  "devDependencies": {
+    "playwright-core": "^1.62.1"
   }
 }
