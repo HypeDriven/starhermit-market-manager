@@ -7,7 +7,7 @@ import {
   stateHash, isTerminal, TICK_MS,
 } from './rules.js';
 import { hashString, stableStringify } from './rng.js';
-import { CONTENT_VERSION } from './content.js';
+import { CONTENT_VERSION, DEPARTMENT_TYPES } from './content.js';
 
 export const BUILD_VERSION = 1;
 export { TICK_MS };
@@ -95,7 +95,7 @@ export function saveSettings(settings) {
 
 export const ACHIEVEMENTS = [
   { key: 'first-shift', name: 'First Shift', desc: 'Complete your first stage.' },
-  { key: 'full-house', name: 'Full House', desc: 'Have every department unlocked at once.' },
+  { key: 'full-house', name: 'Full House', desc: 'Open all five departments in one market.' },
   { key: 'hot-streak', name: 'Hot Streak', desc: 'Win three stages in a row.' },
   { key: 'market-legend', name: 'Market Legend', desc: 'Complete the final journey stage.' },
   { key: 'neighborhood-favorite', name: 'Neighborhood Favorite', desc: 'Serve 500 guests in total.' },
@@ -146,7 +146,10 @@ export function recordResult(progress, session) {
     progress.winStreak = 0;
   }
 
-  if (state.departments.every((d) => d.unlocked)) grant('full-house');
+  // A full house means every department type, not the single-department
+  // starter stages where "all unlocked" is true from the first tick.
+  const fullHouse = Object.keys(DEPARTMENT_TYPES).length;
+  if (state.departments.length >= fullHouse && state.departments.every((d) => d.unlocked)) grant('full-house');
   if (config.id === 'j40' && state.phase === 'won') grant('market-legend');
 
   const best = (table, id) => {
@@ -287,10 +290,26 @@ export function createSession({ config, mode, allowUndo = false, sessionId = nul
   return session;
 }
 
-// Restore a session from a snapshot (e.g. after backgrounding).
+// Restore a session from a snapshot (e.g. after backgrounding) by replaying
+// the recorded command log deterministically rather than trusting the cached
+// state blob. Command ids and ticks are regenerated identically (same session
+// id, same issue order), so the rebuilt state matches the original hash.
 export function resumeSession(snapshot, config) {
   const session = createSession({ config, mode: snapshot.mode, sessionId: snapshot.id });
-  // Rebuild deterministically from the command log rather than trusting the
-  // cached state blob.
+  const commands = Array.isArray(snapshot.commands) ? snapshot.commands : [];
+  const targetTick = snapshot.state && Number.isFinite(snapshot.state.tick) ? snapshot.state.tick : 0;
+  const byTick = new Map();
+  for (const cmd of commands) {
+    const t = cmd.tick >>> 0;
+    if (!byTick.has(t)) byTick.set(t, []);
+    byTick.get(t).push(cmd);
+  }
+  let guard = targetTick + commands.length + 100;
+  while (!session.isOver && guard-- > 0) {
+    const t = session.state.tick;
+    for (const cmd of byTick.get(t) || []) session.issue({ ...cmd });
+    if (t >= targetTick) break;
+    session.stepTick();
+  }
   return session;
 }

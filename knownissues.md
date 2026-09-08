@@ -110,3 +110,47 @@ pre-fix source, then fixed and re-verified (see the per-item verification notes)
 - **Learn / Journey / Challenge play-throughs in the browser.** Only the mode picker and the first
   screens were driven; the rules engine's own golden-session tests cover the logic.
 - **`MM_DATA_DIR` deployment path and durable-store behaviour under concurrent writes.**
+
+## 2026-09-07 review pass (Kimi)
+
+Follow-up review after the 2026-09-05 fixes. `npm test` 75/75, `npm run test:e2e` PASS
+(desktop + mobile), live server probes (honest/tampered/malformed submissions, idempotent
+resubmit, path traversal) all clean, plus a headless-Chrome check of the no-WebGL compat path.
+
+Resolved this pass:
+
+1. **Suspected #1 (static prefix check)** — `server.js` `serveStatic` now requires
+   `file === ROOT || file.startsWith(ROOT + path.sep)`, so a prefix-sharing sibling directory
+   can never be served.
+2. **Suspected #2 (rate-limit buckets never swept)** — `rateLimited` now deletes buckets
+   idle > 2 minutes once the map exceeds 1000 entries.
+3. **`durationMs` type coercion** — a string `durationMs` passed validation by coercion but was
+   stored as a string, breaking the leaderboard's numeric tiebreak sort. Now `Number()`-coerced,
+   validated with `Number.isFinite`, and stored as a number; non-numeric values get 422.
+4. **`resumeSession` did not resume** — it returned a fresh tick-0 session despite its comment
+   promising a deterministic rebuild. It now replays the snapshot's command log; covered by a
+   unit test asserting identical state hash, score, and command count.
+5. **`full-house` achievement granted on one-department stages** — `departments.every(unlocked)`
+   is true from the first tick of the bakery-only stages. Now requires all five department types
+   open; description updated. Unit-tested both ways.
+6. **Keyboard-only players could not upgrade** — upgrades only existed in the pointer-opened
+   context panel. The accessibility mirror now lists display/checkout upgrade actions.
+7. **Context/staff panels destroyed keyboard focus every tick** — `updateHUD` rebuilt both
+   panels each tick via `replaceChildren`. Focus is now preserved across rebuilds by command key.
+8. **No-WebGL compat mode had no visible controls** — the fallback text promised on-screen
+   buttons but the mirror list stayed `visually-hidden` (the CSS referenced an orphaned
+   `force-mirror` hook that nothing set). Compat continue and renderer-load failure now set
+   `html.force-mirror`, which keeps the action list visible. Verified in headless Chrome with
+   WebGL blocked: list visible, upgrade/restock/pause all work, no page errors.
+9. **Submission rank was discarded** — `finishRound` dropped the rank returned by
+   `platform.submitScore`; the results screen now shows `rank #N` (server or local board).
+10. **Stage cards misused ARIA** — `<button role="listitem">` stripped button semantics; the
+    role (and the container's `role="list"`) removed.
+11. **Tutorial text/config mismatch** — lesson 4 step 3 said "earn 90 coins"; the goal is 80.
+12. **Haptics setting was inert** — now wired to `navigator.vibrate` on command success/error
+    and shift end (best-effort, gated by the setting).
+13. **LICENSE.md was missing** — added PolyForm Noncommercial 1.0.0 per root instructions.
+
+Not changed (deliberate): `timingAssist` and `holdToConfirm` remain presentation-only toggles —
+wiring timing assist into rules would alter determinism and ranked replays, which is a design
+decision, not a bug fix. The `voice` volume bus is reserved for future content.

@@ -187,7 +187,7 @@ export function createUI({ callbacks }) {
     showScreen('stage-select');
     els.stageHeading.textContent = MODE_HEADINGS[mode] || 'Stages';
     els.stageList.replaceChildren(...items.map((it) => {
-      const card = el('button', { class: 'stage-card' + (it.locked ? ' locked' : ''), type: 'button', role: 'listitem' });
+      const card = el('button', { class: 'stage-card' + (it.locked ? ' locked' : ''), type: 'button' });
       card.append(
         el('span', { class: 'name' }, it.name),
         it.blurb ? el('span', { class: 'sub' }, it.blurb) : el('span', { class: 'sub' }, goalSummary(it.goals)),
@@ -272,7 +272,7 @@ export function createUI({ callbacks }) {
   // ------------------------------------------------------- context panel
   function cmdButton(label, cmd) {
     const verdict = callbacks.explain(cmd);
-    const btn = el('button', { class: 'btn', type: 'button' }, label);
+    const btn = el('button', { class: 'btn', type: 'button', dataset: { cmd: JSON.stringify(cmd) } }, label);
     if (!verdict.ok) {
       btn.disabled = true;
       btn.title = humanizeReason(verdict.reason);
@@ -282,10 +282,27 @@ export function createUI({ callbacks }) {
     return btn;
   }
 
+  // Panels are rebuilt on every state change (each tick). Without this, a
+  // keyboard user focused inside a panel loses focus twice a second.
+  function preserveFocus(panel, rebuild) {
+    const focusCmd = panel.contains(document.activeElement)
+      ? document.activeElement.dataset.cmd
+      : null;
+    rebuild();
+    if (focusCmd) {
+      const again = panel.querySelector(`[data-cmd="${CSS.escape(focusCmd)}"]`);
+      if (again && !again.disabled) again.focus({ preventScroll: true });
+    }
+  }
+
   function showContextPanel(pick, state, config) {
     lastPick = pick;
     lastState = state;
     lastConfig = config;
+    preserveFocus(els.contextPanel, () => buildContextPanel(pick, state, config));
+  }
+
+  function buildContextPanel(pick, state, config) {
     const panel = els.contextPanel;
     panel.replaceChildren();
     if (!pick) { panel.hidden = true; return; }
@@ -333,7 +350,7 @@ export function createUI({ callbacks }) {
       panel.hidden = true;
       return;
     }
-    const close = el('button', { class: 'btn btn-ghost', type: 'button' }, 'Close');
+    const close = el('button', { class: 'btn btn-ghost', type: 'button', dataset: { cmd: 'close' } }, 'Close');
     close.addEventListener('click', () => { hideContextPanel(); callbacks.onPickProxy(null); });
     panel.append(close);
   }
@@ -347,6 +364,10 @@ export function createUI({ callbacks }) {
   // --------------------------------------------------------- staff panel
   function showStaffPanel(state) {
     lastState = state;
+    preserveFocus(els.staffPanel, () => buildStaffPanel(state));
+  }
+
+  function buildStaffPanel(state) {
     const panel = els.staffPanel;
     panel.replaceChildren(el('h3', {}, 'Staff'));
     const roles = [
@@ -390,7 +411,7 @@ export function createUI({ callbacks }) {
     'out-of-moves': 'Out of moves — the market could not keep up.',
   };
 
-  function showResults({ session, config, score, newly, best, next, submitted }) {
+  function showResults({ session, config, score, newly, best, next, submitted, rank }) {
     showScreen('results');
     const won = session.state.phase === 'won';
     els.resultsHeading.textContent = won ? 'Shift complete' : 'Shift over';
@@ -411,12 +432,13 @@ export function createUI({ callbacks }) {
     els.resultsTotal.textContent = String(score.total);
     els.resultsTiebreak.textContent =
       `Tiebreak: ${score.tiebreak.goalComplete ? 'goals met' : 'goals missed'} · ${score.tiebreak.invalidCount} invalid action${score.tiebreak.invalidCount === 1 ? '' : 's'} · ${ticksToClock(score.tiebreak.ticksElapsed, 500)} elapsed`;
-    if (best != null) {
+    const rankText = typeof rank === 'number' && rank > 0 ? ` · rank #${rank}` : '';
+    if (best != null || submitted) {
       els.resultsBest.hidden = false;
-      const tag = submitted === 'local' ? ' · saved to the local board'
+      const tag = submitted === 'local' ? ' · saved to the local board' + rankText
         : submitted === false ? ' · played offline, not submitted'
-        : submitted ? ' · submitted' : '';
-      els.resultsBest.textContent = `Best on this stage: ${best}` + tag;
+        : submitted ? ' · submitted' + rankText : '';
+      els.resultsBest.textContent = (best != null ? `Best on this stage: ${best}` : 'Result recorded') + tag;
     } else {
       els.resultsBest.hidden = true;
     }
@@ -556,6 +578,27 @@ export function createUI({ callbacks }) {
         cmd: { type: 'serve', checkoutId: c.id },
         pick: { kind: 'checkout', id: c.id },
         label: `Serve checkout ${c.id.slice(1)} — ${c.queue.length} waiting`,
+      });
+    }
+    // Upgrades are core actions; without mirror entries, keyboard-only
+    // players had no path to them (the context panel is pointer-opened).
+    for (const d of state.displays) {
+      const dept = state.departments.find((x) => x.id === d.deptId);
+      entries.push({
+        key: 'upgrade-' + d.id,
+        cmd: { type: 'upgrade', targetKind: 'display', targetId: d.id },
+        pick: { kind: 'display', id: d.id },
+        label: `Upgrade ${dept ? dept.name : 'shelf'} shelf ${d.id.slice(1)} — level ${d.level}` +
+          (d.level >= 3 ? ' (max)' : `, cost ${upgradeCost(state, 'display', d)}`),
+      });
+    }
+    for (const c of state.checkouts) {
+      entries.push({
+        key: 'upgrade-' + c.id,
+        cmd: { type: 'upgrade', targetKind: 'checkout', targetId: c.id },
+        pick: { kind: 'checkout', id: c.id },
+        label: `Upgrade checkout ${c.id.slice(1)} — level ${c.level}` +
+          (c.level >= 3 ? ' (max)' : `, cost ${upgradeCost(state, 'checkout', c)}`),
       });
     }
     for (const dept of state.departments) {

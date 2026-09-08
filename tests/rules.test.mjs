@@ -9,6 +9,7 @@ import {
   journeyStages, tutorialStages, challengeStages, practiceConfig, dailyConfig,
   validateAll, autoPlay, THEMES, CONTENT_VERSION,
 } from '../src/content.js';
+import { createSession, resumeSession, recordResult } from '../src/session.js';
 
 let passed = 0;
 let failed = 0;
@@ -258,6 +259,59 @@ section('daily determinism');
   const d3 = dailyConfig('2026-08-20');
   eq(JSON.stringify(d1), JSON.stringify(d2), 'same day => same config');
   ok(d1.seed !== d3.seed, 'different day => different seed');
+}
+
+// ---------------------------------------------------------------------------
+section('session: snapshot resume rebuilds deterministically');
+{
+  const config = journeyStages()[1];
+  const s1 = createSession({ config, mode: 'journey' });
+  let n = 0;
+  while (!s1.isOver && s1.state.tick < 40) {
+    if (n % 3 === 0) {
+      const legal = s1.legalActions();
+      const act = legal.find((a) => a.type === COMMANDS.SERVE) || legal[0];
+      if (act) {
+        const { label, ...cmd } = act;
+        s1.issue(cmd);
+      }
+    }
+    n++;
+    if (!s1.isOver) s1.stepTick();
+  }
+  ok(s1.state.tick > 10, 'resume test session advanced (tick=' + s1.state.tick + ')');
+  ok(s1.commands.length > 0, 'resume test session issued commands');
+  const s2 = resumeSession(s1.snapshot(), config);
+  eq(stateHash(s2.state), stateHash(s1.state), 'resumeSession rebuilds identical state hash');
+  eq(computeScore(s2.state).total, computeScore(s1.state).total, 'resumeSession score matches');
+  eq(s2.commands.length, s1.commands.length, 'resumeSession command log length matches');
+}
+
+// ---------------------------------------------------------------------------
+section('achievements: full-house requires every department type');
+{
+  const freshProgress = () => ({
+    journey: {}, challenges: {}, daily: {}, tutorialsDone: [],
+    achievements: {}, guestsServedTotal: 0, winStreak: 0, bestStreak: 0,
+  });
+
+  // a single-department stage is "all unlocked" from the first tick — that
+  // must not count as a full house
+  const small = createGame(stage1);
+  small.phase = PHASE.WON;
+  const p1 = freshProgress();
+  recordResult(p1, { state: small, config: stage1 });
+  ok(!p1.achievements['full-house'], 'full-house not granted on a one-department stage');
+
+  // five departments, all open → granted
+  const big = journeyStages().find((s) => s.departments.length >= 5);
+  ok(big, 'a five-department journey stage exists');
+  const bigState = createGame(big);
+  for (const d of bigState.departments) d.unlocked = true;
+  bigState.phase = PHASE.WON;
+  const p2 = freshProgress();
+  recordResult(p2, { state: bigState, config: big });
+  ok(p2.achievements['full-house'], 'full-house granted when all five departments are open');
 }
 
 // ---------------------------------------------------------------------------

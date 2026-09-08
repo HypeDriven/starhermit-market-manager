@@ -433,6 +433,26 @@ html:not(.force-mirror) .board-mirror { /* compact summary only; full list is vi
   max-height: 60dvh;
   z-index: 18;
 }
+/* No-WebGL compat mode: the action list is the only play surface, so it
+   must stay visible, not just while focused. */
+html.force-mirror #mirror-list {
+  position: absolute !important;
+  width: min(420px, calc(100vw - 24px)) !important;
+  height: auto !important;
+  margin: 0 !important;
+  clip: auto !important;
+  clip-path: none !important;
+  overflow-y: auto;
+  white-space: normal !important;
+  inset-inline-start: 12px;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 64px);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 12px;
+  max-height: 55dvh;
+  z-index: 18;
+}
 
 /* ---------------------------------------------------------------- responsive */
 @media (min-width: 1024px) {

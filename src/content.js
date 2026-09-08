@@ -342,7 +342,7 @@ export const TUTORIALS = [
       steps: [
         { text: 'Upgraded shelves hold more and sell for more. Select a shelf and choose Upgrade.', require: { type: COMMANDS.UPGRADE, targetKind: 'display' } },
         { text: 'Upgraded checkouts keep queued guests patient longer. Upgrade a checkout.', require: { type: COMMANDS.UPGRADE, targetKind: 'checkout' } },
-        { text: 'Now put it all together: serve 12 guests and earn 90 coins.', require: null },
+        { text: 'Now put it all together: serve 12 guests and earn 80 coins.', require: null },
       ],
     },
   }),

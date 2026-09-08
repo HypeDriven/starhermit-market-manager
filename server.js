@@ -52,6 +52,13 @@ function saveDb(db) {
 const buckets = new Map();
 function rateLimited(ip, cost = 1, perMinute = 60) {
   const now = Date.now();
+  // Sweep stale buckets once the map grows so unique source addresses cannot
+  // accumulate for the process lifetime.
+  if (buckets.size > 1000) {
+    for (const [k, b] of buckets) {
+      if (now - b.windowStart > 120000) buckets.delete(k);
+    }
+  }
   let b = buckets.get(ip);
   if (!b || now - b.windowStart > 60000) { b = { windowStart: now, used: 0 }; buckets.set(ip, b); }
   if (b.used + cost > perMinute) return true;
@@ -113,10 +120,10 @@ function validateSubmission(envelope) {
 
   // Plausibility: duration within an order of magnitude of published ticks.
   const ticks = authoritative.maxTicks;
-  const ms = envelope.durationMs || 0;
-  if (ms < 1000 || ms > ticks * 500 * 20) return { error: 'implausible-duration' };
+  const ms = Number(envelope.durationMs);
+  if (!Number.isFinite(ms) || ms < 1000 || ms > ticks * 500 * 20) return { error: 'implausible-duration' };
 
-  return { ok: true, score: verdict.score.total, phase: verdict.phase };
+  return { ok: true, score: verdict.score.total, phase: verdict.phase, durationMs: ms };
 }
 
 // ---------------------------------------------------------------------------
@@ -175,7 +182,7 @@ async function handleApi(req, res, pathname, query, ip) {
       seed: envelope.seed,
       contentVersion: envelope.contentVersion,
       assists: envelope.assists || {},
-      durationMs: envelope.durationMs,
+      durationMs: verdict.durationMs,
       sessionId: String(envelope.sessionId || '').slice(0, 64),
       at: Date.now(),
     };
@@ -218,7 +225,7 @@ async function handleApi(req, res, pathname, query, ip) {
 function serveStatic(req, res, pathname) {
   if (pathname === '/') pathname = '/index.html';
   const file = path.normalize(path.join(ROOT, pathname));
-  if (!file.startsWith(ROOT)) { res.writeHead(403); return res.end(); }
+  if (file !== ROOT && !file.startsWith(ROOT + path.sep)) { res.writeHead(403); return res.end(); }
   // Never serve the data dir, dotfiles, or source maps.
   const rel = path.relative(ROOT, file);
   if (rel.startsWith('.mm-data') || path.basename(file).startsWith('.') || rel.endsWith('.map')) {

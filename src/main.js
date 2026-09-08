@@ -130,6 +130,7 @@ function boot() {
 
   function onCompatContinue() {
     webgl = false;
+    document.documentElement.classList.add('force-mirror');
     ui.toast('Playing without the 3D view — use the on-screen action buttons', 'info');
     goTitle();
   }
@@ -271,6 +272,7 @@ function boot() {
       }).catch((e) => {
         console.error('renderer failed to load', e);
         webgl = false;
+        document.documentElement.classList.add('force-mirror');
         ui.toast('3D view failed to load — the button controls still work', 'bad');
         return null;
       });
@@ -474,9 +476,11 @@ function boot() {
     if (!res.ok) {
       ui.toast(humanizeReason(res.reason), 'bad');
       audio.playEvent('error');
+      buzz(60);
       return;
     }
     audio.uiClick();
+    buzz(10);
     audio.mapEvents(res.events);
     if (renderer) renderer.syncState(session.state, res.events);
     ui.updateHUD(session.state, session, round.config);
@@ -636,10 +640,12 @@ function boot() {
     saveProgress(progress);
 
     let submitted = null;
+    let rank = null;
     if (mode === 'daily' || mode === 'score') {
       // platform.submitScore falls back to the local board when offline.
       const res = await platform.submitScore(session.replayEnvelope());
       submitted = res && res.ok ? (res.local ? 'local' : true) : false;
+      if (res && res.ok && typeof res.rank === 'number') rank = res.rank;
     }
 
     const best = mode === 'journey' || mode === 'score'
@@ -649,8 +655,9 @@ function boot() {
         : config.dailyDate ? progress.daily[config.dailyDate]?.score : null;
 
     const next = nextAction(mode, id, session.state.phase === 'won');
-    lastResults = { session, config, score, newly, best, next, submitted };
+    lastResults = { session, config, score, newly, best, next, submitted, rank };
     appScreen = 'results';
+    buzz(session.state.phase === 'won' ? [40, 60, 40] : 120);
     ui.showResults(lastResults);
   }
 
@@ -748,6 +755,14 @@ function boot() {
   // ----------------------------------------------------------- analytics
   function track(name) {
     if (settings.consentAnalytics) platform.beacon(name);
+  }
+
+  // ------------------------------------------------------------ haptics
+  function buzz(pattern) {
+    if (!settings.haptics) return;
+    try {
+      if (typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') navigator.vibrate(pattern);
+    } catch { /* haptics are best-effort */ }
   }
 
   // ------------------------------------------------------------ keyboard
