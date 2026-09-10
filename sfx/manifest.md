@@ -17,3 +17,5 @@ Generated with MOSS-SoundEffect v2.0, 48 kHz mono Opus (96 kbps VBR, loudness-no
 | lost.opus | lost | A gentle descending phrase of soft mellow marimba tones, wistful and quiet, like closing up shop at night. |
 | error.opus | error | A short dull double buzz, like a denied button press on an old cash register, flat and unmusical. |
 | ui-click.opus | uiClick | A very short clean interface tap, like pressing a soft rubber button on a payment terminal, crisp and quiet. |
+| countdown.opus | countdown | A single soft warm wooden mallet tick with a short bell tail, a gentle pre-roll count beat before a shift begins, calm and unhurried. |
+| achievement.opus | achievement | A warm rising three-note glockenspiel sparkle with a soft shimmer tail, a small proud reward flourish for earning a badge. |

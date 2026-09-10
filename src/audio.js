@@ -36,6 +36,8 @@ const SFX_MAP = {
   lost: 'lost',
   error: 'error',
   uiClick: 'ui-click',
+  countdown: 'countdown',
+  achievement: 'achievement',
 };
 
 export function createAudio(settings = {}) {
@@ -255,6 +257,13 @@ export function createAudio(settings = {}) {
         break;
       case 'error':
         tone('effects', { freq: 180, dur: 0.12, type: 'square', gain: 0.08 });
+        break;
+      case 'countdown': // pre-shift count beat
+        tone('effects', { freq: 392, dur: 0.16, type: 'triangle', gain: 0.1 });
+        break;
+      case 'achievement': // badge earned flourish
+        [523, 659, 784].forEach((f, i) =>
+          tone('effects', { freq: f, dur: 0.22, type: 'triangle', gain: 0.11, when: i * 0.09 }));
         break;
     }
   }

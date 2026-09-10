@@ -1,0 +1,21 @@
+# Market Manager — canonical SFX manifest
+# Format: file | event id | what it should sound like | usage context
+# Event ids are the keys of SFX_MAP in src/audio.js. Every clip is optional:
+# audio.js falls back to WebAudio synthesis while a clip loads or if it fails.
+# All clips: MOSS-SoundEffect v2.0, 48 kHz mono Opus 96 kbps VBR, loudness-normalised.
+
+sfx/spawn.opus       | spawn       | Soft hollow cork pop, friendly and rounded.                                  | A guest walks in through the entrance arch (rules event kind `spawn`).
+sfx/take.opus        | take        | Quick plasticky pick-up pop, short and snappy.                               | A guest lifts an item off a shelf (`take`); stock drops by one.
+sfx/restock.opus     | restock     | Wooden crate set down with a solid thud and light rattle of goods settling.  | A shelf is refilled from the stockroom, by the player or by the hired stocker (`restock`).
+sfx/served.opus      | served      | Bright register chime with two metallic coin dings.                          | A queued guest is checked out and pays (`served`), by the player or the hired cashier.
+sfx/left-angry.opus  | left-angry  | Low irritated grumble and brisk footsteps fading out.                        | A queued guest runs out of patience and leaves (`left-angry`); costs score.
+sfx/left-empty.opus  | left-empty  | Soft disappointed descending tick and a light tap on an empty shelf.         | A browsing guest gives up because the shelf is empty (`left-empty`).
+sfx/hire.opus        | hire        | Cheerful rubber-stamp thump on paper then a short welcoming chime.           | Stocker or cashier hired from the staff panel (`hire`).
+sfx/upgrade.opus     | upgrade     | Rising metallic ratchet click finishing on a bright ding.                    | A shelf or checkout is upgraded a level (`upgrade`).
+sfx/unlock.opus      | unlock      | Brass key turning in a padlock, then a sparkle chime.                        | A locked department is bought open (`unlock`).
+sfx/countdown.opus   | countdown   | Single soft wooden mallet tick with a short bell tail, calm and unhurried.   | Each beat of the 3-2-1 pre-shift countdown in main.js runCountdown(); skipped under reduced motion.
+sfx/won.opus         | won         | Short celebratory brass-and-bells fanfare rising to a joyful chord.          | Shift ends with every goal met (`terminal` result `won`); plays on the music bus.
+sfx/lost.opus        | lost        | Gentle descending mellow marimba phrase, wistful and quiet.                  | Shift ends short of the goals (`terminal` result `lost`); plays on the music bus.
+sfx/achievement.opus | achievement | Warm rising three-note glockenspiel sparkle with a shimmer tail.             | A badge is newly earned; fires 700 ms after the win/lose sting on the results screen.
+sfx/error.opus       | error       | Short dull double buzz, flat and unmusical.                                  | A rejected command; paired with the toast that explains the refusal reason.
+sfx/ui-click.opus    | uiClick     | Very short clean interface tap, crisp and quiet.                             | Any menu, HUD or panel button press (ui.js click handlers).

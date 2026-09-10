@@ -27,6 +27,8 @@ const MIME = {
   '.ico': 'image/x-icon',
   '.webmanifest': 'application/manifest+json',
   '.opus': 'audio/ogg; codecs=opus',
+  '.webp': 'image/webp',
+  '.glb': 'model/gltf-binary',
 };
 
 // ---------------------------------------------------------------------------
@@ -226,9 +228,11 @@ function serveStatic(req, res, pathname) {
   if (pathname === '/') pathname = '/index.html';
   const file = path.normalize(path.join(ROOT, pathname));
   if (file !== ROOT && !file.startsWith(ROOT + path.sep)) { res.writeHead(403); return res.end(); }
-  // Never serve the data dir, dotfiles, or source maps.
+  // Never serve the data dir, dev-only trees, dotfiles, or source maps.
   const rel = path.relative(ROOT, file);
-  if (rel.startsWith('.mm-data') || path.basename(file).startsWith('.') || rel.endsWith('.map')) {
+  const top = rel.split(path.sep)[0];
+  if (top === '.mm-data' || top === 'tests' || top === 'tools' || top === 'node_modules'
+      || path.basename(file).startsWith('.') || rel.endsWith('.map')) {
     res.writeHead(404); return res.end();
   }
   fs.readFile(file, (err, data) => {

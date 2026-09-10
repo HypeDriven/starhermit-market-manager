@@ -76,5 +76,17 @@
     "seconds": 1,
     "prompt": "A very short clean interface tap, like pressing a soft rubber button on a payment terminal, crisp and quiet.",
     "event": "uiClick"
+  },
+  {
+    "name": "countdown",
+    "seconds": 1,
+    "prompt": "A single soft warm wooden mallet tick with a short bell tail, a gentle pre-roll count beat before a shift begins, calm and unhurried.",
+    "event": "countdown"
+  },
+  {
+    "name": "achievement",
+    "seconds": 2,
+    "prompt": "A warm rising three-note glockenspiel sparkle with a soft shimmer tail, a small proud reward flourish for earning a badge.",
+    "event": "achievement"
   }
 ]

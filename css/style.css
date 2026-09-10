@@ -126,6 +126,24 @@ body { height: 100dvh; overflow: hidden; display: flex; flex-direction: column; 
   width: min(100%, 560px);
 }
 .panel-wide { width: min(100%, 860px); }
+.screen[data-screen="title"] {
+  background-image: linear-gradient(rgba(253, 243, 227, 0.55), rgba(253, 243, 227, 0.8)), url("../assets/title-backdrop.webp");
+  background-size: cover;
+  background-position: center bottom;
+}
+html.high-contrast .screen[data-screen="title"] { background-image: none; }
+
+.results-banner {
+  display: block;
+  width: 100%;
+  max-height: 132px;
+  object-fit: cover;
+  object-position: center 62%;
+  border-radius: calc(var(--radius) - 4px);
+  margin: 0 0 10px;
+}
+html.high-contrast .results-banner { display: none; }
+
 .title-panel { text-align: center; }
 .title-panel h1 { font-size: 2.2rem; margin: 0 0 4px; color: var(--accent-deep); }
 .tagline { color: var(--ink-soft); margin-top: 0; }

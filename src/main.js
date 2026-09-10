@@ -360,6 +360,7 @@ function boot() {
     for (const n of ['3', '2', '1']) {
       if (token !== countdownToken) return;
       ui.showCountdown(n);
+      audio.playEvent('countdown');
       ui.announce(n, 'assertive');
       await sleep(650);
     }
@@ -638,6 +639,8 @@ function boot() {
     finishTutorialIfNeeded();
     const newly = recordResult(progress, session);
     saveProgress(progress);
+    // Badge flourish lands after the win/lose sting so the two never overlap.
+    if (newly.length) setTimeout(() => audio.playEvent('achievement'), 700);
 
     let submitted = null;
     let rank = null;
