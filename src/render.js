@@ -1079,7 +1079,10 @@ export function createRenderer(container, opts = {}) {
     const w = Math.max(1, grid.w), h = Math.max(1, grid.h);
     const needW = (w + h) * FRAMING.fitWidthPerTile + FRAMING.fitPadX;
     const needH = (w + h) * FRAMING.fitHeightPerTile + FRAMING.fitPadY;
-    baseViewH = Math.max(needH, needW / currentAspect());
+    const insTop = hudInsets();
+    const hh = container.clientHeight || 1;
+    const safeAspect = (container.clientWidth || 1) / Math.max(120, hh - insTop.top - insTop.bottom);
+    baseViewH = Math.max(needH, needW / safeAspect);
     applyOrtho();
     // key light shadow volume covers the room
     const ext = Math.max(w, h) / 2 + 3;
@@ -1099,13 +1102,36 @@ export function createRenderer(container, opts = {}) {
     return w / hgt;
   }
 
+  // HUD bands covering the canvas (top HUD + banner, bottom mirror/summary).
+  // The room is framed inside the uncovered band via a view offset.
+  function hudInsets() {
+    const ins = { top: 0, bottom: 0 };
+    if (typeof document === 'undefined') return ins;
+    const cr = container.getBoundingClientRect();
+    const H = cr.height || 1;
+    const band = (sel) => {
+      const el = document.querySelector(sel);
+      if (!el || el.hidden || !el.offsetParent) return null;
+      const r = el.getBoundingClientRect();
+      return r.height ? { t: r.top - cr.top, b: r.bottom - cr.top, w: r.width } : null;
+    };
+    const top = band('.hud-top'); if (top && top.b < H * 0.45) ins.top = Math.max(ins.top, top.b);
+    const tut = band('#tutorial-banner'); if (tut && tut.b < H * 0.5) ins.top = Math.max(ins.top, tut.b);
+    const mirror = band('#board-mirror'); if (mirror && mirror.t > H * 0.55 && mirror.w > cr.width * 0.5) ins.bottom = Math.max(ins.bottom, H - mirror.t);
+    return ins;
+  }
+
   function applyOrtho() {
-    const aspect = currentAspect();
+    const w = container.clientWidth || 1, h = container.clientHeight || 1;
+    const ins = hudInsets();
+    const safeH = Math.max(120, h - ins.top - ins.bottom);
+    const aspect = w / safeH;
     const halfH = baseViewH / 2;
     camera.left = -halfH * aspect;
     camera.right = halfH * aspect;
     camera.top = halfH;
     camera.bottom = -halfH;
+    camera.setViewOffset(w, safeH, 0, -ins.top, w, h);
     camera.updateProjectionMatrix();
   }
 
@@ -1348,7 +1374,16 @@ export function createRenderer(container, opts = {}) {
     const h = container.clientHeight || 1;
     renderer.setSize(w, h, false);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, QUALITY[options.quality].pixelRatio));
-    applyOrtho();
+    if (grid.w) updateFraming(); else applyOrtho();
+  }
+
+  // HUD bands change without a resize (banner shows, mirror grows): refit.
+  if (typeof MutationObserver !== 'undefined' && typeof document !== 'undefined') {
+    const mo = new MutationObserver(() => { if (grid.w) updateFraming(); });
+    for (const sel of ['#tutorial-banner', '#board-mirror', '.hud-top']) {
+      const el = document.querySelector(sel);
+      if (el) mo.observe(el, { attributes: true, childList: true, subtree: true, attributeFilter: ['hidden', 'class', 'style'] });
+    }
   }
 
   let resizeObserver = null;
