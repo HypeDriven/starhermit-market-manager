@@ -78,7 +78,6 @@ export const DEFAULT_SETTINGS = {
   haptics: true,
   camera: 'isometric', // isometric | high | low
   tutorialsDone: [],
-  consentAnalytics: false,
 };
 
 export function loadSettings() {

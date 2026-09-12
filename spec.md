@@ -30,7 +30,7 @@ short, and spend the takings on staff, upgrades and new departments before closi
 | `src/ui.js` | DOM shell: screen switching, HUD, context/staff drawers, results table, help cards, the accessibility board mirror. |
 | `src/render.js` | Three.js scene: market geometry, customer figures, particles, camera framing, picking, quality tiers, colorblind palettes. |
 | `src/audio.js` | WebAudio: authored `.opus` one-shots with synthesised fallbacks, ambience bed, two-layer adaptive music. |
-| `src/platform.js` | Optional same-origin backend adapter with local-board fallback. |
+| `src/platform.js` | StarHermit adapter: launch-token auth, identity, cloud saves, read-only platform leaderboards; own-server dev backend and local-board fallback. |
 | `src/rng.js` | mulberry32 seeded RNG, stable stringify, FNV-1a state hashing. |
 | `server.js` | Static host + `/api/v1` time, daily, scores, leaderboard, heartbeat. Replays every submission server-side. |
 | `sfx/` | 15 Opus clips plus `manifest.txt` (canonical), `manifest.json` (generator), `manifest.md` (legacy prompt table). |
@@ -188,11 +188,11 @@ bounded 50-deep stack of previous states and pops the command off the log so rep
 | Mode | Content | Differs by | Ranked |
 |---|---|---|---|
 | **Learn** | 4 lessons (`t01`–`t04`) | Step-gated banners that require the taught command; verbs disabled until taught; long patience (60) | No |
-| **Journey** | 40 stages `j01`–`j40` | Authored curve; stage N+1 unlocks by beating N; every 4th stage is a `mastery` test | No, progress saved locally |
-| **Daily** | `dailyConfig(YYYY-MM-DD)` | One seed per UTC day from `hash('market-manager-daily-'+date)`; 2–4 departments, map, money, spawn rate, patience, goal and theme all derived from that seed | Yes |
+| **Journey** | 40 stages `j01`–`j40` | Authored curve; stage N+1 unlocks by beating N; every 4th stage is a `mastery` test | No — progress saved locally, cloud-mirrored when signed in |
+| **Daily** | `dailyConfig(YYYY-MM-DD)` | One seed per UTC day from `hash('market-manager-daily-'+date)`; 2–4 departments, map, money, spawn rate, patience, goal and theme all derived from that seed | Yes — against the own-server backend only; on-platform the board is read-only |
 | **Practice** | relaxed / standard / intense | Spawn 12/8/5, patience 48/36/28, goal serve 15/22/32, starting money 120/100/90; **undo enabled** | No |
-| **Challenge** | 5 stages `c01`–`c05` | Constraints: 10-move limit; 110-tick speed shift; every shelf starts empty; single checkout at spawn 6; hiring disabled | No, progress saved locally |
-| **Score chase** | any beaten stage | Same rules, submission on | Yes |
+| **Challenge** | 5 stages `c01`–`c05` | Constraints: 10-move limit; 110-tick speed shift; every shelf starts empty; single checkout at spawn 6; hiring disabled | No — progress saved locally, cloud-mirrored when signed in |
+| **Score chase** | any beaten stage | Same rules, submission on | Yes — against the own-server backend only; on-platform the board is read-only |
 
 **Difficulty curve (Journey).** Blocks of four: block 1 bakery-only restock/serve; block 2 adds a second
 department and `unlock`; later blocks add checkouts, `hire`, `upgrade`, the split `lanes` floor and five-department
@@ -369,25 +369,34 @@ label is positioned by a fixed pixel width.
 ## 12. StarHermit integration
 
 `starhermit.txt` declares `name`, `launch=index.html`, `owner`, `server=server.js`, `cover=coverart.png`.
-Per https://wiki.starhermit.com/ conventions the game uses:
 
-- **Server script / sessions** — `server.js` is the hosted game script. `GET /api/v1/time` is the authoritative
-  clock (the client stores a round-trip-adjusted offset and derives the UTC daily date from it).
-- **Daily content** — `GET /api/v1/daily` publishes the day's seed and an `excluded` flag.
-- **Leaderboards** — `POST /api/v1/scores` takes the replay envelope; the server resolves the *authoritative*
-  published config for the submitted content id (daily / journey / practice / challenge), rejects ids that do
-  not resolve (`unknown-content`) and seeds that disagree (`seed-mismatch`), replays with `verifyReplay`, and
-  rejects implausible durations computed from the published `maxTicks`. `GET /api/v1/leaderboard?board=&date=`
-  returns ranked entries. Submissions are idempotent on `sessionId + configId`.
-- **Presence** — `POST /api/v1/heartbeat` at most every 30 s while a round is live.
-- **Analytics** — `POST /api/v1/beacon` with a fixed funnel vocabulary, only after explicit consent.
+**Own server (`server.js`, local dev backend).** When the game is served by its own static host, the
+client probes `GET /api/v1/time` (round-trip-adjusted offset for the UTC daily boundary), reads the day
+via `GET /api/v1/daily`, submits runs with `POST /api/v1/scores` (the server resolves the *authoritative*
+published config for the submitted content id, rejects ids that do not resolve (`unknown-content`) and
+seeds that disagree (`seed-mismatch`), replays with `verifyReplay`, and rejects implausible durations
+computed from the published `maxTicks`; idempotent on `sessionId + configId`), reads ranked entries via
+`GET /api/v1/leaderboard?board=&date=&configId=`, and pings `POST /api/v1/heartbeat` while a round is
+live. Daily and score-chase modes are ranked only against this backend.
 
-Everything degrades: `platform.init()` probes with a 1.5 s timeout, and on failure the game plays fully offline
-against a local 50-entry board with the same entry shape.
+**Hosted platform (`<slug>.starhermit.com`).** `src/platform.js` reads the launch token from the URL
+fragment (`#game_token=`, read once then stripped; query params are local-dev fallbacks only), decodes
+`sub` / `game_scope` from the JWT payload, and sends `Authorization: Bearer` on every call, re-minting
+the token via `POST /api/v1/games/{slug}/launch-token` every 45 min (retry ~60 s on failure). The
+account nickname comes from `GET /api/v1/users/{sub}/profile` — never `/api/v1/me`, never usernames;
+fallback `"Player " + id.slice(0,8)` — and is shown with a sync chip on the title screen. Progress and
+local boards mirror to the platform cloud slot (`GET`/`PUT /api/v1/me/cloud-saves/{slug}` as a stored
+zip + base64; remote wins on conflict; ~2 s debounce + `pagehide`/`visibilitychange` flush;
+localStorage stays the offline cache). Platform leaderboards are read-only: `GET /api/v1/games/{slug}`
+yields the `leaderboardId`, entries come from
+`GET /api/v1/leaderboards/{leaderboardId}/entries` (userIds resolved to nicknames via the profile
+helper), and the top of the board renders on the shift briefing. Clients never submit scores on-platform;
+a ranked run records to the local board instead. Achievements stay local (part of the cloud-saved doc).
+There is no presence, telemetry, or per-game daily endpoint on the platform surface — heartbeat exists
+only against the own dev server, and the old analytics beacon was removed.
 
-**Not used:** identity/accounts (no login, no tokens, no credential persistence — local entries are named
-"You"), achievements as a platform service (badges are local), matchmaking, real-time multiplayer, cloud saves,
-in-app purchase.
+Everything degrades: `platform.init()` probes time out fast, and any failure falls back to local play
+against localStorage with no console noise.
 
 ## 13. Technical architecture
 
@@ -403,8 +412,9 @@ plus a final hash.
 
 **Persistence.** `localStorage` under an `mm.` prefix, each document version-wrapped: `settings.v1`,
 `progress.v1`, `lastPlayed.v1`, `localBoards.v1`. Every read is try/caught and falls back to defaults, so
-corrupt or absent storage boots cleanly. Server state is a single JSON file under `.mm-data/` (override with
-`MM_DATA_DIR`), written atomically-ish and gitignored.
+corrupt or absent storage boots cleanly. Signed-in platform sessions additionally mirror `progress.v1` and
+`localBoards.v1` to the cloud slot (§12); the remote copy wins on conflict. Server state is a single JSON
+file under `.mm-data/` (override with `MM_DATA_DIR`), written atomically-ish and gitignored.
 
 **Loop.** A `requestAnimationFrame` accumulator in `main.js` steps the session at 500 ms with at most
 `MAX_CATCHUP_STEPS = 4` catch-up ticks after a stall; backgrounding pauses and the pause screen reports
@@ -470,13 +480,14 @@ characters, so Kimodo has nothing to author for this game.
 - **`voice` bus is reserved.** It has a slider and a gain node but no content routes to it.
 - **`timingAssist` and `holdToConfirm` are presentation-only toggles.** Wiring timing assist into the rules
   would change determinism and ranked replays, so it is deliberately inert.
-- **Score-chase entries are named "You"** — there is no identity service, so a shared board cannot distinguish
-  players beyond session ids.
+- **Local/offline board entries are named 'You'.** Hosted play names entries with the platform nickname;
+  offline entries have no identity beyond the session id.
 - **Audio is unverified in CI.** Headless Chrome blocks the AudioContext before a user gesture, so the SFX and
   music paths are exercised manually, not by `tests/e2e.mjs`.
 - **`render.js` has no visual regression coverage.** The e2e proves it produces no runtime errors and that
   picking works; it does not compare pixels.
-- **Local progress is device-local.** Clearing site data resets journey unlocks, badges and the local board.
+- **Local progress is device-local unless signed in.** Without a platform session, clearing site data resets
+  journey unlocks, badges and the local board; signed-in sessions re-sync from the cloud slot.
 
 ## 17. Design intent not yet implemented
 
@@ -485,5 +496,3 @@ characters, so Kimodo has nothing to author for this game.
    change, and `data-i18n` keys on the static markup. Today every string is inline English.
 2. **Voice/announcer content** on the reserved `voice` bus (shift-start and last-minute callouts).
 3. **Timing assist** as an actual rules-level assist (widened patience) in unranked modes only.
-4. **Platform identity** for named leaderboard entries and cross-device progress once StarHermit identity is
-   available to the game.

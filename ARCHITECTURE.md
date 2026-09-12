@@ -14,7 +14,8 @@ first load.
 - `src/render.js` — Three.js scene. Contract below.
 - `src/ui.js` — DOM shell: screens, HUD, panels, accessibility. Owned by UI implementation.
 - `src/audio.js` — WebAudio synth SFX + adaptive music, volume buses. Owned by UI implementation.
-- `src/platform.js` — optional hosted backend adapter with graceful local fallback. Contract below.
+- `src/platform.js` — StarHermit adapter: launch-token auth + refresh, profile nickname, cloud-save mirror,
+  read-only platform leaderboards; own-server dev backend and local-board fallback. Contract below.
 - `src/main.js` — bootstrap + glue. Owns the game loop.
 - `server.js` — optional Node authoritative script (daily seeds, score validation, leaderboards).
 - `tests/rules.test.mjs` — `node tests/rules.test.mjs` must stay green.
@@ -115,19 +116,31 @@ decoration so replays look identical; draw calls ≤ 150 desktop / ≤ 90 mobile
 Fall back gracefully (return `null` from a `tryCreateRenderer`-style guard is NOT needed —
 main.js checks WebGL support before calling).
 
-## Platform contract (src/platform.js ↔ server.js)
+## Platform contract (src/platform.js ↔ server.js / StarHermit platform)
 
 Same-origin, optional. All calls must time out fast and fall back to local behavior
-(offline play is fully supported). Endpoints:
+(offline play is fully supported). Hosted mode activates iff a launch token was read
+from the URL fragment (`#game_token=`); the token rides as `Authorization: Bearer` on
+every call and is re-minted via `POST /api/v1/games/{slug}/launch-token` every 45 min.
+
+Hosted platform routes (read-only leaderboards; no client score submission):
+
+- `GET /api/v1/users/{userId}/profile` → `{id, username, nickname}` — display nickname only
+- `GET /api/v1/games/{slug}` → `{leaderboardId, ...}`
+- `GET /api/v1/leaderboards/{leaderboardId}/entries?pageSize=` → ranked entries (resolve userIds to nicknames)
+- `GET`/`PUT /api/v1/me/cloud-saves/{slug}` → stored-zip + base64 save doc; remote wins on conflict
+- Rate limit: HTTP 429 with `{ error }` — treat as recoverable.
+
+Own-server routes (the game's server.js, local dev backend — never called in hosted mode):
 
 - `GET /api/v1/time` → `{ now: <unix ms> }` (round-trip adjusted offset for daily boundary)
 - `GET /api/v1/daily` → `{ date: 'YYYY-MM-DD', seed: <uint32>, excluded: false }`
 - `POST /api/v1/scores` — body: replay envelope from `session.replayEnvelope()` → `{ ok, rank? }` or `{ error }`
 - `GET /api/v1/leaderboard?board=<daily|global>&date=<iso>` → `{ entries: [{name, score, date, durationMs}] }`
 - `POST /api/v1/heartbeat` → `{ ok: true }` (throttled, only while actively playing)
-- Rate limit: HTTP 429 with `{ error }` — treat as recoverable.
 
-Never persist tokens. Guest mode needs none of this.
+Tokens are never persisted to storage — only held in memory for the session. Guest mode
+needs none of this; localStorage is always the offline cache.
 
 ## State model
 

@@ -32,6 +32,7 @@
           <p id="daily-chip" class="chip" hidden>
             Daily market: <span id="daily-date"></span> · <span id="daily-countdown"></span>
           </p>
+          <p id="player-chip" class="chip" role="status" hidden></p>
           <p id="journey-progress-summary" class="muted"></p>
           <div class="stack">
             <button id="btn-play" class="btn btn-primary btn-big" type="button">Play</button>
@@ -75,6 +76,8 @@
             <div><dt>Rules</dt><dd id="setup-rules"></dd></div>
             <div><dt>Standing</dt><dd id="setup-ranked"></dd></div>
           </dl>
+          <p id="setup-board-label" class="muted" hidden></p>
+          <ol id="setup-board" class="board-list" hidden></ol>
           <div class="row">
             <button id="btn-start" class="btn btn-primary" type="button">Start shift</button>
             <button class="btn btn-ghost btn-back" type="button" data-back>Back</button>
@@ -220,7 +223,6 @@
               <label class="check"><input id="set-hold-confirm" type="checkbox"> Hold to confirm actions</label>
               <label class="check"><input id="set-timing-assist" type="checkbox"> Timing assist</label>
               <label class="check"><input id="set-haptics" type="checkbox"> Haptics</label>
-              <label class="check"><input id="set-analytics" type="checkbox"> Share anonymous usage stats</label>
             </fieldset>
             <div class="row">
               <button id="btn-replay-tutorials" class="btn" type="button">Replay tutorials</button>

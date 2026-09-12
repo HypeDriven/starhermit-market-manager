@@ -41,7 +41,7 @@ const MAX_LOOP_ERRORS = 5;
 function boot() {
   // ------------------------------------------------------------ services
   const settings = loadSettings();
-  const progress = loadProgress();
+  let progress = loadProgress();
   const audio = createAudio(settings);
   const platform = createPlatform();
 
@@ -86,8 +86,13 @@ function boot() {
   ui.applySettingsClasses(settings);
 
   platform.onError = (info) => {
-    if (info.kind === 'rate-limited') ui.toast('Server is busy — scores will save locally for now', 'info');
-    track('error-category');
+    if (info.kind === 'rate-limited') ui.toast('Server is busy — will retry in a moment', 'info');
+  };
+  platform.onIdentity = ({ nickname }) => {
+    ui.setPlayerInfo({ nickname, status: platform.syncStatus, hosted: platform.hosted });
+  };
+  platform.onSync = (status) => {
+    ui.setPlayerInfo({ nickname: platform.nickname, status, hosted: platform.hosted });
   };
 
   // First gesture unlocks WebAudio.
@@ -110,8 +115,15 @@ function boot() {
   refreshDailyInfo();
   setInterval(() => { if (appScreen === 'title') refreshDailyInfo(); }, 30000);
 
-  // Probe the backend without blocking the title screen.
-  platform.init().then(refreshDailyInfo).catch(() => {});
+  // Probe the platform/backend without blocking the title screen. A remote
+  // cloud save wins over the local cache, so progress reloads when one lands.
+  platform.init().then((info) => {
+    if (info && info.remoteLoaded) progress = loadProgress();
+    if (info && info.hosted) {
+      ui.setPlayerInfo({ nickname: platform.nickname, status: platform.syncStatus, hosted: true });
+    }
+    refreshDailyInfo();
+  }).catch(() => {});
 
   // ------------------------------------------------------------ boot done
   if (webgl) {
@@ -151,7 +163,7 @@ function boot() {
   function onModeChosen(mode) {
     if (mode == null) {
       appScreen = 'mode-select';
-      ui.showModeSelect();
+      ui.showModeSelect(platform.hosted);
       return;
     }
     if (mode === 'daily') {
@@ -225,8 +237,20 @@ function boot() {
     if (!config) throw new Error('unknown stage ' + id);
     pending = { mode, id, config, fromStageSelect, stageArgs: pending?.stageArgs };
     appScreen = 'setup';
-    const ranked = (mode === 'daily' || mode === 'score') && platform.available;
-    ui.showSetup(mode, config, ranked);
+    const ranked = (mode === 'daily' || mode === 'score') && platform.ranked;
+    ui.showSetup(mode, config, ranked, platform.hosted);
+    if (mode === 'daily' || mode === 'score') {
+      // Leaderboard preview: read-only on-platform, own-server board in dev,
+      // local records offline. Skipped silently when nothing can answer.
+      const board = config.dailyDate ? 'daily' : 'global';
+      platform.getLeaderboard({ board, date: config.dailyDate || null, configId: mode === 'score' ? config.id : null })
+        .then((entries) => {
+          if (pending && pending.config === config && appScreen === 'setup') {
+            ui.showSetupBoard(entries, platform.hosted ? 'Platform leaderboard — read-only' : 'Top shifts');
+          }
+        })
+        .catch(() => {});
+    }
   }
 
   function onStart() {
@@ -319,7 +343,6 @@ function boot() {
     if (!pending) return;
     const { mode, id, config } = pending;
     saveKey('lastPlayed.v1', { mode, id });
-    track('start');
 
     const session = createSession({ config, mode, allowUndo: mode === 'practice' });
     round = { mode, id, config, session };
@@ -431,7 +454,6 @@ function boot() {
 
   function handleLoopError(e) {
     console.error('tick error', e);
-    track('error-category');
     if (++loopErrors >= MAX_LOOP_ERRORS && active) {
       ui.toast('Something went wrong repeatedly — the shift was paused', 'bad');
       pauseGame(true);
@@ -610,7 +632,6 @@ function boot() {
     const step = tutorial.steps[tutorial.index];
     if (step && step.require && matchesRequire(cmd, step.require)) {
       tutorial.index++;
-      track('tutorial-step');
       showTutorialStep();
     }
   }
@@ -634,21 +655,23 @@ function boot() {
     active = false;
     stopLoop();
     audio.stopMusic();
-    track('round-end');
 
     finishTutorialIfNeeded();
     const newly = recordResult(progress, session);
     saveProgress(progress);
+    platform.queueCloudSave();
     // Badge flourish lands after the win/lose sting so the two never overlap.
     if (newly.length) setTimeout(() => audio.playEvent('achievement'), 700);
 
     let submitted = null;
     let rank = null;
     if (mode === 'daily' || mode === 'score') {
-      // platform.submitScore falls back to the local board when offline.
+      // Own-server backend: replay-verified ranked submit. Hosted platform:
+      // leaderboards are read-only, so the run records to the local board.
       const res = await platform.submitScore(session.replayEnvelope());
       submitted = res && res.ok ? (res.local ? 'local' : true) : false;
       if (res && res.ok && typeof res.rank === 'number') rank = res.rank;
+      if (res && res.ok && res.local) platform.queueCloudSave();
     }
 
     const best = mode === 'journey' || mode === 'score'
@@ -684,7 +707,6 @@ function boot() {
 
   function onRetry() {
     if (!round) return;
-    track('retry');
     const { mode, id } = round;
     round = null;
     pending = { ...pending, mode, id, config: buildConfig(mode, id) };
@@ -725,7 +747,7 @@ function boot() {
     } else if (dest === 'title') goTitle();
     else if (dest === 'mode-select') onModeChosen(null);
     else if (dest === 'stage-select' && pending?.stageArgs) ui.showStageSelect(...pending.stageArgs);
-    else if (dest === 'setup' && pending) ui.showSetup(pending.mode, pending.config, false);
+    else if (dest === 'setup' && pending) ui.showSetup(pending.mode, pending.config, false, platform.hosted);
     else if (dest === 'results' && lastResults) ui.showResults(lastResults);
     else goTitle();
   }
@@ -743,7 +765,6 @@ function boot() {
       renderer.setCamera(settings.camera || 'isometric');
       if (round) renderer.setTheme(themeById(settings.theme || round.config.theme));
     }
-    track('settings-change');
   }
 
   function onReplayTutorials() {
@@ -751,13 +772,9 @@ function boot() {
     saveSettings(settings);
     progress.tutorialsDone = [];
     saveProgress(progress);
+    platform.queueCloudSave();
     ui.toast('Tutorial progress reset', 'info');
     showStageSelectFor('learn');
-  }
-
-  // ----------------------------------------------------------- analytics
-  function track(name) {
-    if (settings.consentAnalytics) platform.beacon(name);
   }
 
   // ------------------------------------------------------------ haptics
@@ -857,7 +874,6 @@ function boot() {
   window.addEventListener('error', (e) => {
     console.error('uncaught', e.error || e.message);
     ui.toast('Something hiccuped — the game kept going', 'bad');
-    track('error-category');
   });
 
   // ------------------------------------------------------------ helpers

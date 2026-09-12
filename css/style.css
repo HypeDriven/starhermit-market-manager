@@ -193,6 +193,14 @@ html.high-contrast .results-banner { display: none; }
   font-size: 0.85rem;
 }
 
+.board-list {
+  margin: 8px 0 0;
+  padding-left: 22px;
+}
+
+.board-list li { margin: 2px 0; }
+.board-list .board-rank { color: var(--ink-soft); }
+
 /* ---------------------------------------------------------------- cards */
 .card-grid {
   display: grid;

@@ -63,12 +63,14 @@ export function createUI({ callbacks }) {
   const els = {
     sceneHost: $('scene-host'),
     dailyChip: $('daily-chip'), dailyDate: $('daily-date'), dailyCountdown: $('daily-countdown'),
+    playerChip: $('player-chip'),
     journeySummary: $('journey-progress-summary'),
     modeCards: $('mode-cards'),
     stageHeading: $('stage-heading'), stageList: $('stage-list'),
     setupHeading: $('setup-heading'), setupSummary: $('setup-summary'), setupBlurb: $('setup-blurb'),
     setupGoals: $('setup-goals'), setupDuration: $('setup-duration'),
     setupRules: $('setup-rules'), setupRanked: $('setup-ranked'),
+    setupBoardLabel: $('setup-board-label'), setupBoard: $('setup-board'),
     hudObjective: $('hud-objective'), hudMoves: $('hud-moves'),
     hudMoney: $('hud-money'), hudTime: $('hud-time'),
     hudServed: $('hud-served'), hudScore: $('hud-score'),
@@ -163,15 +165,20 @@ export function createUI({ callbacks }) {
     }
   }
 
-  function showModeSelect() {
+  function showModeSelect(hosted = false) {
     showScreen('mode-select');
     els.modeCards.replaceChildren(...MODES.map((m) => {
       const card = el('button', { class: 'card', type: 'button' });
+      const standingText = hosted && (m.id === 'journey' || m.id === 'challenge')
+        ? 'Progress synced to your account'
+        : hosted && (m.id === 'daily' || m.id === 'score')
+          ? 'Personal best · platform board read-only'
+          : m.standingText;
       card.append(
         el('h3', {}, m.name),
         el('p', {}, m.blurb),
         el('p', { class: 'meta' }, 'About ' + m.duration),
-        el('p', { class: 'meta ' + m.standing }, m.standingText),
+        el('p', { class: 'meta ' + m.standing }, standingText),
       );
       card.addEventListener('click', () => callbacks.onModeChosen(m.id));
       return card;
@@ -213,7 +220,7 @@ export function createUI({ callbacks }) {
     return parts.length ? 'Goals: ' + parts.join(', ') : 'Open play';
   }
 
-  function showSetup(mode, config, ranked) {
+  function showSetup(mode, config, ranked, hosted = false) {
     showScreen('setup');
     els.setupHeading.textContent = config.name;
     els.setupSummary.textContent = goalSummary(config.goals) + ' · ' + modeLabel(mode);
@@ -221,7 +228,47 @@ export function createUI({ callbacks }) {
     els.setupGoals.replaceChildren(...goalLinesFromConfig(config).map((t) => el('li', {}, t)));
     els.setupDuration.textContent = 'Up to ' + ticksToClock(config.maxTicks, 500);
     els.setupRules.textContent = rulesSummary(config);
-    els.setupRanked.textContent = ranked ? 'Ranked — replay submitted for verification' : 'Casual — result stays on this device';
+    els.setupRanked.textContent = ranked
+      ? 'Ranked — replay submitted for verification'
+      : hosted
+        ? 'Casual — progress syncs to your account; the platform leaderboard is read-only'
+        : 'Casual — result stays on this device';
+    // Refilled by showSetupBoard once the board read resolves.
+    els.setupBoardLabel.hidden = true;
+    els.setupBoard.hidden = true;
+    els.setupBoard.replaceChildren();
+  }
+
+  function showSetupBoard(entries, label) {
+    if (!Array.isArray(entries) || !entries.length) {
+      els.setupBoardLabel.hidden = true;
+      els.setupBoard.hidden = true;
+      return;
+    }
+    els.setupBoardLabel.hidden = false;
+    els.setupBoardLabel.textContent = label;
+    els.setupBoard.hidden = false;
+    els.setupBoard.replaceChildren(...entries.slice(0, 10).map((e, i) => {
+      const li = el('li', {});
+      li.append(
+        el('span', { class: 'board-rank' }, `#${e.rank != null ? e.rank : i + 1}`),
+        el('span', {}, ` ${e.name || 'Player'} — `),
+        el('strong', {}, String(e.score != null ? e.score : 0)),
+      );
+      return li;
+    }));
+  }
+
+  function setPlayerInfo({ nickname, status, hosted } = {}) {
+    if (!hosted) { els.playerChip.hidden = true; return; }
+    const syncText = {
+      synced: 'progress synced to your account',
+      saving: 'saving…',
+      offline: 'offline — will sync later',
+      error: 'sync problem — progress is safe on this device',
+    }[status];
+    els.playerChip.hidden = false;
+    els.playerChip.textContent = `Playing as ${nickname || 'Player'}${syncText ? ' · ' + syncText : ''}`;
   }
 
   function goalLinesFromConfig(config) {
@@ -487,7 +534,7 @@ export function createUI({ callbacks }) {
     quality: 'set-quality', theme: 'set-theme', camera: 'set-camera', colorblind: 'set-colorblind',
     reducedMotion: 'set-reduced-motion', highContrast: 'set-high-contrast', largeText: 'set-large-text',
     leftHanded: 'set-left-handed', holdToConfirm: 'set-hold-confirm', timingAssist: 'set-timing-assist',
-    haptics: 'set-haptics', consentAnalytics: 'set-analytics',
+    haptics: 'set-haptics',
   };
 
   function showSettings(settings) {
@@ -701,6 +748,8 @@ export function createUI({ callbacks }) {
     showModeSelect,
     showStageSelect,
     showSetup,
+    showSetupBoard,
+    setPlayerInfo,
     updateHUD,
     showContextPanel,
     hideContextPanel,
