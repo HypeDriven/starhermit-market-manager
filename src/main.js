@@ -16,6 +16,10 @@ import {
 import { createUI, humanizeReason } from './ui.js';
 import { createAudio } from './audio.js';
 import { createPlatform } from './platform.js';
+import {
+  detectPreset, resolve as resolveGraphics, describe as describeGraphics, legacyPreset, gpuName,
+} from './gfx.js';
+import { createGraphicsPanel } from './gfx-panel.js';
 
 const CONTROL_MAP = [
   { keys: 'Tap / click a shelf', action: 'restock it (or open its actions)' },
@@ -47,7 +51,14 @@ function boot() {
 
   let renderer = null;
   let rendererPromise = null;
+  let gpu = '';
   let webgl = detectWebGL();
+  // Graphics: Auto picks a preset from the GPU (touch devices cap at Balanced).
+  const mobile = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
+  const detectedPreset = detectPreset(gpu, mobile);
+  if (!settings.graphics || typeof settings.graphics !== 'object') {
+    settings.graphics = { preset: legacyPreset(settings.quality) };
+  }
 
   // ---------------------------------------------------------- round state
   // appScreen: title | mode-select | stage-select | setup | game | pause |
@@ -84,6 +95,14 @@ function boot() {
 
   ui.wireSettings(THEMES);
   ui.applySettingsClasses(settings);
+
+  const gfxPanel = createGraphicsPanel(document.getElementById('gfx-section'), {
+    locale: (typeof navigator !== 'undefined' && (navigator.languages?.[0] || navigator.language)) || 'en-US',
+    getSaved: () => settings.graphics,
+    onChange: applyGraphics,
+    getInfo: graphicsInfo,
+  });
+  applyGraphics(settings.graphics);
 
   platform.onError = (info) => {
     if (info.kind === 'rate-limited') ui.toast('Server is busy — will retry in a moment', 'info');
@@ -274,20 +293,43 @@ function boot() {
     }
   }
 
-  // ----------------------------------------------------------- renderer
-  function resolveQuality() {
-    if (settings.quality && settings.quality !== 'auto') return settings.quality;
-    const coarse = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
-    return coarse ? 'medium' : 'high';
+  // ----------------------------------------------------------- graphics
+  function applyGraphics(saved) {
+    settings.graphics = { ...(saved || {}) };
+    delete settings.quality; // superseded by settings.graphics.preset
+    saveSettings(settings);
+    const r = resolveGraphics(settings.graphics, detectedPreset);
+    const root = document.documentElement;
+    root.dataset.gfxPreset = r.preset;
+    root.dataset.gfxDetail = r.detail;
+    root.dataset.gfxAuto = r.auto ? 'true' : 'false';
+    if (renderer) renderer.setGraphics(settings.graphics);
   }
+
+  function motionReduced() {
+    const os = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+    return !!settings.reducedMotion || os;
+  }
+
+  function graphicsInfo(words) {
+    if (renderer) return { ...renderer.graphicsInfo(words), webgl };
+    const r = resolveGraphics(settings.graphics, detectedPreset);
+    const ratio = Math.min(window.devicePixelRatio || 1, r.maxRatio) * r.scale;
+    const px = [Math.round(window.innerWidth * ratio), Math.round(window.innerHeight * ratio)];
+    return { gpu, detected: detectedPreset, resolved: r, summary: describeGraphics(r, px, words), postFailed: false, webgl };
+  }
+
+  // ----------------------------------------------------------- renderer
 
   async function ensureRenderer() {
     if (renderer || !webgl) return renderer;
     if (!rendererPromise) {
       rendererPromise = import('./render.js').then(({ createRenderer }) => {
         renderer = createRenderer(document.getElementById('scene-host'), {
-          quality: resolveQuality(),
-          reducedMotion: !!settings.reducedMotion,
+          graphics: settings.graphics,
+          detected: detectedPreset,
+          gpu,
+          reducedMotion: motionReduced(),
           colorblind: settings.colorblind || 'none',
           camera: settings.camera || 'isometric',
           onPick, onHover,
@@ -730,6 +772,7 @@ function boot() {
     } else {
       appScreen = 'settings';
       ui.showSettings(settings);
+      gfxPanel.refresh();
     }
   }
 
@@ -759,8 +802,8 @@ function boot() {
     ui.applySettingsClasses(settings);
     audio.setVolumes(settings);
     if (renderer) {
-      renderer.setQuality(resolveQuality());
-      renderer.setReducedMotion(!!settings.reducedMotion);
+      renderer.setGraphics(settings.graphics);
+      renderer.setReducedMotion(motionReduced());
       renderer.setColorblind(settings.colorblind || 'none');
       renderer.setCamera(settings.camera || 'isometric');
       if (round) renderer.setTheme(themeById(settings.theme || round.config.theme));
@@ -880,7 +923,11 @@ function boot() {
   function detectWebGL() {
     try {
       const c = document.createElement('canvas');
-      return !!(c.getContext('webgl2') || c.getContext('webgl'));
+      const gl = c.getContext('webgl2') || c.getContext('webgl');
+      if (!gl) return false;
+      gpu = gpuName(gl, navigator.userAgent || '');
+      gl.getExtension('WEBGL_lose_context')?.loseContext();
+      return true;
     } catch {
       return false;
     }

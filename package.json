@@ -3,9 +3,9 @@
   "version": "1.0.0",
   "type": "module",
   "private": true,
-  "description": "Market Manager — a bright isometric neighborhood market management game.",
+  "description": "Market Manager \u2014 a bright isometric neighborhood market management game.",
   "scripts": {
-    "test": "node tests/rules.test.mjs",
+    "test": "node tests/rules.test.mjs && node --test tests/gfx.test.mjs",
     "test:e2e": "node tests/e2e.mjs",
     "start": "node server.js 8080"
   },

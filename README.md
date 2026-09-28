@@ -19,7 +19,8 @@ journey, tutorials, and a local daily all work without the API).
 ## Test
 
 ```
-node tests/rules.test.mjs
+npm test            # rules suite + graphics-model unit tests
+npm run test:e2e    # headless Chrome playthrough (desktop + mobile)
 ```
 
 Covers every legal action and invalid-action reason, scoring components,

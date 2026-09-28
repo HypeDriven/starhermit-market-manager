@@ -531,7 +531,7 @@ export function createUI({ callbacks }) {
   // ------------------------------------------------------------- settings
   const SETTING_INPUTS = {
     music: 'set-music', effects: 'set-effects', ambience: 'set-ambience', voice: 'set-voice',
-    quality: 'set-quality', theme: 'set-theme', camera: 'set-camera', colorblind: 'set-colorblind',
+    theme: 'set-theme', camera: 'set-camera', colorblind: 'set-colorblind',
     reducedMotion: 'set-reduced-motion', highContrast: 'set-high-contrast', largeText: 'set-large-text',
     leftHanded: 'set-left-handed', holdToConfirm: 'set-hold-confirm', timingAssist: 'set-timing-assist',
     haptics: 'set-haptics',
@@ -565,6 +565,7 @@ export function createUI({ callbacks }) {
     for (const t of themes) themeSelect.append(el('option', { value: t.id }, t.name));
     els.settingsForm.addEventListener('input', (e) => {
       if (e.target === $('btn-replay-tutorials')) return;
+      if (e.target.closest && e.target.closest('#gfx-section')) return; // gfx-panel.js owns these
       callbacks.onSettings(readSettingsForm());
     });
     els.settingsForm.addEventListener('submit', (e) => e.preventDefault());

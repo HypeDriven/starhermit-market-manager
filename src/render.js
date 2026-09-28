@@ -4,7 +4,20 @@
 // views, effects, camera, and input, and never mutates game state.
 
 import * as THREE from '../lib/three.module.min.js';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import { GTAOPass } from 'three/addons/postprocessing/GTAOPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { SMAAPass } from 'three/addons/postprocessing/SMAAPass.js';
+import { FXAAShader } from 'three/addons/shaders/FXAAShader.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { TILE, queueSlot } from './rules.js';
+import {
+  resolve as resolveGraphics, describe as describeGraphics, legacyPreset,
+  SHADOW_MAP, PARTICLE_CAP,
+} from './gfx.js';
 
 // ---------------------------------------------------------------------------
 // Authored constants (no magic numbers inline below)
@@ -31,10 +44,46 @@ const FRAMING = {
   far: 120,
 };
 
-const QUALITY = {
-  low: { shadows: false, shadowMap: 0, pixelRatio: 1, particleCap: 300, propDensity: 0 },
-  medium: { shadows: true, shadowMap: 1024, pixelRatio: 1.5, particleCap: 800, propDensity: 4 },
-  high: { shadows: true, shadowMap: 2048, pixelRatio: 2, particleCap: 2000, propDensity: 10 },
+// Lighting / look constants. `env*` apply only while image-based lighting
+// (the `reflections` graphics category) is on; the hemisphere fill is lowered
+// then so the room environment does not wash the scene out.
+const LOOK = {
+  hemiIntensity: 0.55,
+  hemiIntensityWithEnv: 0.3,
+  envIntensity: 0.32,
+  keyDir: [-0.55, 1.45, 0.95],   // key light from front-left so shadows fall where the camera sees them
+  propCount: 10,                 // decorative planters outside the walls (detail: detailed)
+  motes: 70,                     // ambient floating motes (particles: high)
+  bloom: { strength: 0.3, radius: 0.35, threshold: 0.92 },
+  hdrBoost: 2.4,                 // particle / marker colour multiplier while bloom is on
+  vignette: 0.2,
+  idleBob: 0.028,                // world units of gentle idle bounce for waiting people
+};
+
+// Adaptive resolution thresholds (ms per frame, averaged over ADAPT.frames).
+const ADAPT = { frames: 90, slowMs: 26, fastMs: 14, down: 0.1, up: 0.05, min: 0.6 };
+
+// Colour grade + vignette. Works on linear HDR input before OutputPass.
+const GradeShader = {
+  uniforms: { tDiffuse: { value: null }, uAmount: { value: 1.0 }, uVignette: { value: LOOK.vignette } },
+  vertexShader: 'varying vec2 vUv; void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+  fragmentShader: `
+    uniform sampler2D tDiffuse; uniform float uAmount; uniform float uVignette;
+    varying vec2 vUv;
+    void main() {
+      vec4 src = texture2D(tDiffuse, vUv);
+      vec3 c = src.rgb;
+      vec3 lc = clamp(c, 0.0, 1.0);
+      // gentle S-curve, a little more saturation, warm highlights / cool shadows
+      vec3 s = mix(lc, lc * lc * (3.0 - 2.0 * lc), 0.22);
+      float l = dot(s, vec3(0.2126, 0.7152, 0.0722));
+      s = mix(vec3(l), s, 1.1);
+      s *= mix(vec3(0.97, 0.985, 1.04), vec3(1.035, 1.0, 0.965), smoothstep(0.15, 0.75, l));
+      c = mix(c, s + max(c - 1.0, 0.0), uAmount);
+      float d = length((vUv - 0.5) * vec2(1.0, 0.85));
+      c *= 1.0 - uVignette * smoothstep(0.38, 0.9, d);
+      gl_FragColor = vec4(c, src.a);
+    }`,
 };
 
 // Gameplay accent palettes per colorblind mode. `dept` cycles over
@@ -137,12 +186,125 @@ function disposeObject(root) {
 }
 
 // ---------------------------------------------------------------------------
+// Procedural textures (canvas-drawn once, shared, near-white so they multiply
+// the authored material / instance colours instead of replacing them)
+// ---------------------------------------------------------------------------
+
+function canvasTexture(size, draw, { repeat = 1, srgb = true } = {}) {
+  const c = document.createElement('canvas');
+  c.width = c.height = size;
+  const g = c.getContext('2d');
+  draw(g, size, mulberry32(size * 7919 + repeat));
+  const tex = new THREE.CanvasTexture(c);
+  if (srgb) tex.colorSpace = THREE.SRGBColorSpace;
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.repeat.set(repeat, repeat);
+  tex.anisotropy = 4;
+  return tex;
+}
+
+function speckle(g, size, rnd, n, lo, hi, r = 1.5) {
+  for (let i = 0; i < n; i++) {
+    const v = Math.round(lo + rnd() * (hi - lo));
+    g.fillStyle = `rgb(${v},${v},${v})`;
+    g.fillRect(rnd() * size, rnd() * size, r, r);
+  }
+}
+
+function makeTextures() {
+  return {
+    // Floor tile: soft bevel highlight top-left, grout shadow bottom-right, speckle.
+    tile: canvasTexture(128, (g, n, rnd) => {
+      g.fillStyle = '#f7f7f7'; g.fillRect(0, 0, n, n);
+      speckle(g, n, rnd, 900, 225, 255);
+      const grad = g.createLinearGradient(0, 0, n, n);
+      grad.addColorStop(0, 'rgba(255,255,255,0.55)');
+      grad.addColorStop(0.5, 'rgba(255,255,255,0)');
+      grad.addColorStop(1, 'rgba(0,0,0,0.08)');
+      g.fillStyle = grad; g.fillRect(0, 0, n, n);
+      g.fillStyle = 'rgba(255,255,255,0.7)';
+      g.fillRect(4, 4, n - 8, 3); g.fillRect(4, 4, 3, n - 8);
+      g.fillStyle = 'rgba(90,70,50,0.22)';
+      g.fillRect(4, n - 7, n - 8, 3); g.fillRect(n - 7, 4, 3, n - 8);
+      g.strokeStyle = '#b9ad9c'; g.lineWidth = 5; g.strokeRect(0, 0, n, n);
+    }),
+    // Grass: layered speckle and blades, tiled across the lawn.
+    grass: canvasTexture(256, (g, n, rnd) => {
+      g.fillStyle = '#eaeaea'; g.fillRect(0, 0, n, n);
+      for (let i = 0; i < 90; i++) {
+        const v = Math.round(205 + rnd() * 50);
+        g.fillStyle = `rgba(${v},${v},${v},0.5)`;
+        g.beginPath(); g.arc(rnd() * n, rnd() * n, 6 + rnd() * 18, 0, Math.PI * 2); g.fill();
+      }
+      g.lineWidth = 1.4;
+      for (let i = 0; i < 1600; i++) {
+        const x = rnd() * n, y = rnd() * n, v = Math.round(170 + rnd() * 85);
+        g.strokeStyle = `rgb(${v},${v},${v})`;
+        g.beginPath(); g.moveTo(x, y); g.lineTo(x + (rnd() - 0.5) * 3, y - 2 - rnd() * 4); g.stroke();
+      }
+    }, { repeat: 1 }),
+    // Plaster wall with faint courses.
+    wall: canvasTexture(128, (g, n, rnd) => {
+      g.fillStyle = '#f2f2f2'; g.fillRect(0, 0, n, n);
+      speckle(g, n, rnd, 1400, 215, 255, 2);
+      g.fillStyle = 'rgba(80,60,40,0.12)';
+      for (let y = 0; y < n; y += 32) g.fillRect(0, y, n, 2);
+      g.fillStyle = 'rgba(255,255,255,0.6)';
+      g.fillRect(0, 0, n, 4);
+    }),
+    // Wood planks for crates and shelf boards.
+    wood: canvasTexture(128, (g, n, rnd) => {
+      g.fillStyle = '#f0f0f0'; g.fillRect(0, 0, n, n);
+      for (let y = 0; y < n; y += 2) {
+        const v = Math.round(215 + Math.sin(y * 0.35 + rnd() * 2) * 18 + rnd() * 12);
+        g.fillStyle = `rgba(${v},${v},${v},0.8)`;
+        g.fillRect(0, y, n, 2);
+      }
+      g.fillStyle = 'rgba(70,45,25,0.35)';
+      for (let y = 0; y < n; y += 32) g.fillRect(0, y, n, 2);
+    }),
+    // Market awning stripes: full colour / deeper tone.
+    awning: canvasTexture(64, (g, n) => {
+      for (let x = 0; x < n; x += 16) {
+        g.fillStyle = (x / 16) % 2 ? '#b8b8b8' : '#ffffff';
+        g.fillRect(x, 0, 16, n);
+      }
+      g.fillStyle = 'rgba(0,0,0,0.12)'; g.fillRect(0, n - 6, n, 6);
+    }),
+    // Soft round sprite for particles and motes.
+    dot: canvasTexture(64, (g, n) => {
+      const grad = g.createRadialGradient(n / 2, n / 2, 0, n / 2, n / 2, n / 2);
+      grad.addColorStop(0, 'rgba(255,255,255,1)');
+      grad.addColorStop(0.55, 'rgba(255,255,255,0.9)');
+      grad.addColorStop(1, 'rgba(255,255,255,0)');
+      g.fillStyle = grad; g.fillRect(0, 0, n, n);
+    }),
+  };
+}
+
+// Vertical sky gradient for the backdrop (detail: detailed).
+function skyTexture(top, bottom) {
+  const c = document.createElement('canvas');
+  c.width = 4; c.height = 256;
+  const g = c.getContext('2d');
+  const grad = g.createLinearGradient(0, 0, 0, 256);
+  grad.addColorStop(0, '#' + new THREE.Color(top).getHexString());
+  grad.addColorStop(1, '#' + new THREE.Color(bottom).getHexString());
+  g.fillStyle = grad; g.fillRect(0, 0, 4, 256);
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
+// ---------------------------------------------------------------------------
 // Renderer factory
 // ---------------------------------------------------------------------------
 
 export function createRenderer(container, opts = {}) {
   const options = {
-    quality: QUALITY[opts.quality] ? opts.quality : 'medium',
+    graphics: opts.graphics || { preset: legacyPreset(opts.quality) },
+    detected: opts.detected || 'balanced',
+    gpu: opts.gpu || '',
     reducedMotion: !!opts.reducedMotion,
     colorblind: PALETTES[opts.colorblind] ? opts.colorblind : 'none',
     camera: FRAMING.presets[opts.camera] ? opts.camera : FRAMING.defaultPreset,
@@ -151,8 +313,11 @@ export function createRenderer(container, opts = {}) {
   };
 
   // -- renderer / scene ------------------------------------------------------
-  const renderer = new THREE.WebGLRenderer({ antialias: options.quality !== 'low' });
+  // Canvas MSAA stays off: anti-aliasing is chosen live by the graphics
+  // settings (FXAA/SMAA passes, or MSAA on the post chain's render target).
+  const renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'high-performance' });
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.0;
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   const canvas = renderer.domElement;
@@ -176,12 +341,32 @@ export function createRenderer(container, opts = {}) {
   const fxGroup = new THREE.Group();
   scene.add(fxGroup);
 
-  const hemi = new THREE.HemisphereLight(0xffffff, 0x777777, 0.55);
+  const hemi = new THREE.HemisphereLight(0xffffff, 0x777777, LOOK.hemiIntensity);
   scene.add(hemi);
   const keyLight = new THREE.DirectionalLight(0xffffff, 1.0);
   keyLight.position.set(6, 10, 4);
+  keyLight.shadow.bias = -0.0006;
+  keyLight.shadow.normalBias = 0.02;
   scene.add(keyLight);
   scene.add(keyLight.target);
+
+  // Image-based lighting: a PMREM-filtered RoomEnvironment, generated lazily
+  // the first time reflections are enabled.
+  let envTexture = null;
+  const tex = makeTextures();
+  let skyTex = null;
+  const skyColor = new THREE.Color(0xffffff);
+
+  // Graphics state (see gfx.js): resolved tiers, post chain, adaptive scale.
+  let gq = resolveGraphics(options.graphics, options.detected);
+  let gfxJson = '';
+  let composer = null;
+  let postKey = null;
+  let postFailed = false;
+  let pixelRatio = 0;
+  let adaptiveScale = 1;
+  let adaptFrames = [];
+  let fps = 0;
 
   // -- module state ----------------------------------------------------------
   let theme = null;
@@ -205,6 +390,7 @@ export function createRenderer(container, opts = {}) {
   let groundMesh = null;
   let archMats = [];
   let discMesh = null;
+  let propsGroup = null;
 
   let lastState = null;
   const pendingEffects = [];
@@ -262,7 +448,44 @@ export function createRenderer(container, opts = {}) {
   }
 
   function std(color, extra = {}) {
-    return new THREE.MeshStandardMaterial({ color, roughness: 0.85, metalness: 0.0, ...extra });
+    return new THREE.MeshStandardMaterial({
+      color, roughness: 0.85, metalness: 0.0, envMapIntensity: LOOK.envIntensity, ...extra,
+    });
+  }
+
+  function phys(color, extra = {}) {
+    return new THREE.MeshPhysicalMaterial({
+      color, roughness: 0.5, metalness: 0.0, envMapIntensity: LOOK.envIntensity, clearcoatRoughness: 0.25, ...extra,
+    });
+  }
+
+  // `detail` category: surface texture and clearcoat are attached to the
+  // material and toggled live (three recompiles when the map/clearcoat change).
+  function withDetail(mat, map, clearcoat = 0) {
+    mat.userData.detail = { map, clearcoat };
+    applyDetailTo(mat);
+    return mat;
+  }
+
+  function applyDetailTo(mat) {
+    const d = mat.userData.detail;
+    if (!d) return;
+    const on = gq.detail === 'detailed';
+    const map = on ? d.map || null : null;
+    const cc = on ? d.clearcoat : 0;
+    if (mat.map !== map || (mat.isMeshPhysicalMaterial && mat.clearcoat !== cc)) {
+      mat.map = map;
+      if (mat.isMeshPhysicalMaterial) mat.clearcoat = cc;
+      mat.needsUpdate = true;
+    }
+  }
+
+  // Marker / highlight colours glow a little while bloom is on.
+  function hdrColor(mat, hex) {
+    mat.userData.hdrHex = hex;
+    mat.color.setHex(hex);
+    if (gq.bloom === 'on') mat.color.multiplyScalar(1.6);
+    return mat;
   }
 
   // -------------------------------------------------------------------------
@@ -285,6 +508,7 @@ export function createRenderer(container, opts = {}) {
     wallMesh = null;
     archMats = [];
     discMesh = null;
+    propsGroup = null;
     hoverView = null;
     hoveredPick = null;
     hoverMarker.visible = false;
@@ -333,7 +557,8 @@ export function createRenderer(container, opts = {}) {
   function buildGround() {
     if (groundMesh) { scene.remove(groundMesh); disposeObject(groundMesh); }
     const size = Math.max(grid.w, grid.h) * 4 + 20;
-    const mat = std(theme ? theme.ground : 0x8fce7a, { roughness: 1 });
+    const mat = withDetail(std(theme ? theme.ground : 0x8fce7a, { roughness: 1 }), tex.grass);
+    tex.grass.repeat.set(size / 4, size / 4);
     groundMesh = new THREE.Mesh(new THREE.PlaneGeometry(size, size), mat);
     groundMesh.rotation.x = -Math.PI / 2;
     groundMesh.position.y = -DIM.floorH - 0.01;
@@ -349,7 +574,7 @@ export function createRenderer(container, opts = {}) {
         spots.push({ x, y });
       }
     }
-    const mat = std(0xffffff, { roughness: 0.95 });
+    const mat = withDetail(std(0xffffff, { roughness: 0.78 }), tex.tile);
     floorMesh = new THREE.InstancedMesh(boxGeo, mat, spots.length);
     floorMesh.receiveShadow = true;
     const m = new THREE.Matrix4();
@@ -380,7 +605,7 @@ export function createRenderer(container, opts = {}) {
       }
     }
     const base = new THREE.Color(theme ? theme.tile : 0xf2e3c2).multiplyScalar(0.72);
-    const mat = std(base, { roughness: 0.9 });
+    const mat = withDetail(std(base, { roughness: 0.9 }), tex.wall);
     wallMesh = new THREE.InstancedMesh(boxGeo, mat, Math.max(1, cells.length));
     wallMesh.castShadow = true;
     wallMesh.receiveShadow = true;
@@ -407,7 +632,7 @@ export function createRenderer(container, opts = {}) {
       if (inGrid && state.grid.cells[ny][nx].t === TILE.WALL) { facing = [-dx, -dy]; break; }
     }
     const { wx, wz } = worldFromTile(e.x, e.y);
-    const mat = std(theme ? theme.accent : 0xe8743b, { roughness: 0.6 });
+    const mat = withDetail(phys(theme ? theme.accent : 0xe8743b, { roughness: 0.55 }), null, 0.6);
     archMats.push(mat);
     const group = new THREE.Group();
     const postGeo = new THREE.BoxGeometry(0.12, 0.85, 0.12);
@@ -437,7 +662,7 @@ export function createRenderer(container, opts = {}) {
     if (!s) return;
     const { wx, wz } = worldFromTile(s.x, s.y);
     const group = new THREE.Group();
-    const crateMat = std(0xb08954, { roughness: 0.9 });
+    const crateMat = withDetail(std(0xb08954, { roughness: 0.9 }), tex.wood);
     const offsets = [[-0.16, 0, -0.12], [0.18, 0, 0.1], [0.02, DIM.crate, -0.02]];
     for (const [ox, oy, oz] of offsets) {
       const crate = new THREE.Mesh(boxGeo, crateMat);
@@ -469,7 +694,7 @@ export function createRenderer(container, opts = {}) {
     group.add(base);
     mats.push(baseMat);
 
-    const boardMat = std(0xcbb894);
+    const boardMat = withDetail(std(0xcbb894), tex.wood);
     mats.push(boardMat);
     for (const h of DIM.shelfBoards) {
       const board = new THREE.Mesh(boxGeo, boardMat);
@@ -486,7 +711,7 @@ export function createRenderer(container, opts = {}) {
       group.add(post);
     }
     // awning strip in the department color (recolored on palette change)
-    const awningMat = std(deptColor(deptIndex), { roughness: 0.6 });
+    const awningMat = withDetail(std(deptColor(deptIndex), { roughness: 0.6 }), tex.awning);
     mats.push(awningMat);
     const awning = new THREE.Mesh(boxGeo, awningMat);
     awning.scale.set(0.94, 0.06, 0.56);
@@ -496,7 +721,7 @@ export function createRenderer(container, opts = {}) {
 
     // goods: one small box per stock unit, spread over the two shelves
     const cap = Math.max(1, d.capacity);
-    const goodsMat = std(0xffffff, { roughness: 0.55 });
+    const goodsMat = withDetail(phys(0xffffff, { roughness: 0.45 }), null, 0.9);
     const goods = new THREE.InstancedMesh(goodGeo, goodsMat, cap);
     goods.castShadow = true;
     const m = new THREE.Matrix4();
@@ -565,7 +790,7 @@ export function createRenderer(container, opts = {}) {
     group.position.set(wx, 0, wz);
     const mats = [];
 
-    const counterMat = std(0xd8c9a8);
+    const counterMat = withDetail(phys(0xd8c9a8, { roughness: 0.7 }), null, 0.5);
     const counter = new THREE.Mesh(boxGeo, counterMat);
     counter.scale.set(0.9, DIM.counterH, 0.5);
     counter.position.y = DIM.counterH / 2;
@@ -573,14 +798,14 @@ export function createRenderer(container, opts = {}) {
     group.add(counter);
     mats.push(counterMat);
 
-    const beltMat = std(0x3c4048, { roughness: 0.5 });
+    const beltMat = withDetail(phys(0x3c4048, { roughness: 0.45 }), null, 0.4);
     const belt = new THREE.Mesh(boxGeo, beltMat);
     belt.scale.set(0.66, 0.04, 0.3);
     belt.position.set(-0.05, DIM.counterH + 0.02, 0);
     group.add(belt);
     mats.push(beltMat);
 
-    const postMat = std(0x8a8f98, { metalness: 0.4, roughness: 0.4 });
+    const postMat = std(0x8a8f98, { metalness: 0.7, roughness: 0.3 });
     const post = new THREE.Mesh(boxGeo, postMat);
     post.scale.set(0.06, 0.34, 0.06);
     post.position.set(0.32, DIM.counterH + 0.17, -0.14);
@@ -636,20 +861,27 @@ export function createRenderer(container, opts = {}) {
     }
   }
 
-  // Decorative props outside the walls; density by quality tier.
+  // Decorative planters outside the walls; shown when `detail` is detailed.
   function buildProps(deco) {
-    const n = QUALITY[options.quality].propDensity;
-    if (!n) return;
-    const potMat = std(0xb56a4a);
-    const leafMat = std(0x4e8f4e);
-    for (let i = 0; i < n; i++) {
+    propsGroup = new THREE.Group();
+    propsGroup.visible = gq.detail === 'detailed';
+    marketGroup.add(propsGroup);
+    const potMat = withDetail(phys(0xb56a4a, { roughness: 0.6 }), null, 0.4);
+    const leafMat = std(0x4e8f4e, { roughness: 0.8 });
+    const leafMat2 = std(0x62a85a, { roughness: 0.8 });
+    const leafGeo = new THREE.ConeGeometry(0.18, 0.34, 7);
+    const topGeo = new THREE.ConeGeometry(0.13, 0.26, 7);
+    for (let i = 0; i < LOOK.propCount; i++) {
       const group = new THREE.Group();
       const pot = new THREE.Mesh(boxGeo, potMat);
       pot.scale.set(0.22, 0.18, 0.22);
       pot.position.y = 0.09;
-      const leaf = new THREE.Mesh(new THREE.ConeGeometry(0.18, 0.34, 6), leafMat);
+      const leaf = new THREE.Mesh(leafGeo, leafMat);
       leaf.position.y = 0.36;
-      group.add(pot, leaf);
+      const top = new THREE.Mesh(topGeo, leafMat2);
+      top.position.y = 0.52;
+      for (const m of [pot, leaf, top]) m.castShadow = true;
+      group.add(pot, leaf, top);
       const side = Math.floor(deco() * 4);
       const along = (deco() - 0.5) * Math.max(grid.w, grid.h);
       const out = 1.3 + deco() * 0.8;
@@ -657,7 +889,7 @@ export function createRenderer(container, opts = {}) {
       const z = side === 0 ? (grid.h / 2 + out) : side === 1 ? -(grid.h / 2 + out) : along;
       group.position.set(x, 0, z);
       group.rotation.y = deco() * Math.PI;
-      marketGroup.add(group);
+      propsGroup.add(group);
     }
   }
 
@@ -667,7 +899,7 @@ export function createRenderer(container, opts = {}) {
 
   function makePerson(colorHex, wx, wz) {
     const group = new THREE.Group();
-    const bodyMat = std(colorHex, { roughness: 0.7 });
+    const bodyMat = withDetail(phys(colorHex, { roughness: 0.6 }), null, 0.35);
     const body = new THREE.Mesh(bodyGeo, bodyMat);
     body.position.y = DIM.personH / 2 + DIM.personR;
     body.castShadow = true;
@@ -870,7 +1102,7 @@ export function createRenderer(container, opts = {}) {
   pGeo.setAttribute('position', new THREE.BufferAttribute(pPos, 3));
   pGeo.setAttribute('color', new THREE.BufferAttribute(pCol, 3));
   const pMat = new THREE.PointsMaterial({
-    size: FX.particleSize, vertexColors: true, transparent: true,
+    size: FX.particleSize * 1.4, vertexColors: true, transparent: true, map: tex.dot,
     opacity: 0.95, depthWrite: false, sizeAttenuation: true,
   });
   const points = new THREE.Points(pGeo, pMat);
@@ -885,6 +1117,40 @@ export function createRenderer(container, opts = {}) {
   let pActive = 0;
   const tmpColor = new THREE.Color();
 
+  // Ambient motes: slow warm specks drifting up through the market light
+  // (particles: high; frozen away under reduced motion).
+  const MOTES = LOOK.motes;
+  const mGeo = new THREE.BufferGeometry();
+  const mPos = new Float32Array(MOTES * 3);
+  const mSeed = [];
+  const moteRnd = mulberry32(4242);
+  for (let i = 0; i < MOTES; i++) mSeed.push([moteRnd(), moteRnd(), moteRnd(), moteRnd()]);
+  mGeo.setAttribute('position', new THREE.BufferAttribute(mPos, 3));
+  const mMat = new THREE.PointsMaterial({
+    size: 0.07, color: 0xfff1c9, map: tex.dot, transparent: true, opacity: 0.55,
+    depthWrite: false, sizeAttenuation: true, blending: THREE.AdditiveBlending,
+  });
+  const motes = new THREE.Points(mGeo, mMat);
+  motes.layers.set(1);
+  motes.frustumCulled = false;
+  motes.visible = false;
+  fxGroup.add(motes);
+
+  function updateMotes() {
+    motes.visible = gq.particles === 'high' && !options.reducedMotion && grid.w > 0;
+    if (!motes.visible) return;
+    const hw = grid.w / 2, hh = grid.h / 2;
+    for (let i = 0; i < MOTES; i++) {
+      const [a, b, c, d] = mSeed[i];
+      const t = elapsed * (0.05 + c * 0.06) + d;
+      const y = (t % 1) * 1.6 + 0.1;
+      mPos[i * 3] = (a - 0.5) * 2 * hw + Math.sin(elapsed * 0.6 + d * 9) * 0.25;
+      mPos[i * 3 + 1] = y;
+      mPos[i * 3 + 2] = (b - 0.5) * 2 * hh + Math.cos(elapsed * 0.5 + c * 9) * 0.25;
+    }
+    mGeo.attributes.position.needsUpdate = true;
+  }
+
   function spawnParticle(x, y, z, vx, vy, vz, ttl, colorHex) {
     const p = particles[pNext];
     pNext = (pNext + 1) % PMAX;
@@ -898,7 +1164,7 @@ export function createRenderer(container, opts = {}) {
   }
 
   function spawnBurst(fx) {
-    const cap = QUALITY[options.quality].particleCap;
+    const cap = PARTICLE_CAP[gq.particles] || PARTICLE_CAP.low;
     if (options.reducedMotion || pActive >= cap) return;
     const rand = Math.random;
     const emit = (count, colorFn, speed, up, ttl) => {
@@ -954,10 +1220,10 @@ export function createRenderer(container, opts = {}) {
   // -------------------------------------------------------------------------
 
   function makeRingMarker(colorHex) {
-    const mat = new THREE.MeshBasicMaterial({
+    const mat = hdrColor(new THREE.MeshBasicMaterial({
       color: colorHex, transparent: true, opacity: 0.85,
       side: THREE.DoubleSide, depthWrite: false,
-    });
+    }), colorHex);
     const mesh = new THREE.Mesh(ringGeo, mat);
     mesh.rotation.x = -Math.PI / 2;
     mesh.position.y = 0.02;
@@ -1010,9 +1276,23 @@ export function createRenderer(container, opts = {}) {
   // Theme / palette / quality setters
   // -------------------------------------------------------------------------
 
+  // Backdrop: flat sky colour, or (detail: detailed) a sky-to-haze gradient.
+  function applyBackground() {
+    const sky = theme ? theme.sky : 0xffffff;
+    const haze = theme ? theme.fog : 0xffffff;
+    if (skyTex) { skyTex.dispose(); skyTex = null; }
+    if (gq.detail === 'detailed') {
+      const top = new THREE.Color(sky).lerp(new THREE.Color(0xffffff), 0.25);
+      skyTex = skyTexture(top.getHex(), haze);
+      scene.background = skyTex;
+    } else {
+      scene.background = skyColor.setHex(sky);
+    }
+  }
+
   function applyThemeToScene() {
     if (!theme) return;
-    scene.background.setHex(theme.sky);
+    applyBackground();
     scene.fog = new THREE.Fog(theme.fog, 34, 78);
     hemi.color.setHex(theme.sky);
     hemi.groundColor.setHex(theme.ground);
@@ -1039,21 +1319,200 @@ export function createRenderer(container, opts = {}) {
     }
   }
 
-  function setQuality(q) {
-    if (!QUALITY[q]) return;
-    options.quality = q;
-    const tier = QUALITY[q];
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, tier.pixelRatio));
-    keyLight.castShadow = tier.shadows;
-    renderer.shadowMap.enabled = tier.shadows;
-    if (tier.shadows) {
-      keyLight.shadow.mapSize.set(tier.shadowMap, tier.shadowMap);
-      if (keyLight.shadow.map) {
-        keyLight.shadow.map.dispose();
-        keyLight.shadow.map = null;
-      }
+  // Apply saved graphics settings live (see gfx.js). Idempotent.
+  function setGraphics(saved) {
+    const json = JSON.stringify(saved || {});
+    if (json === gfxJson) return;
+    gfxJson = json;
+    options.graphics = saved || {};
+    const prev = gq;
+    gq = resolveGraphics(options.graphics, options.detected);
+
+    // shadows
+    const size = SHADOW_MAP[gq.shadows];
+    const shadowsChanged = renderer.shadowMap.enabled !== size > 0;
+    renderer.shadowMap.enabled = size > 0;
+    keyLight.castShadow = size > 0;
+    if (size > 0 && keyLight.shadow.mapSize.x !== size) {
+      keyLight.shadow.mapSize.set(size, size);
+      if (keyLight.shadow.map) { keyLight.shadow.map.dispose(); keyLight.shadow.map = null; }
     }
-    if (discMesh) discMesh.material.opacity = tier.shadows ? 0.1 : 0.18;
+    if (discMesh) discMesh.material.opacity = size > 0 ? 0.1 : 0.18;
+
+    // reflections (image-based lighting)
+    if (gq.reflections === 'on') {
+      if (!envTexture) {
+        const pmrem = new THREE.PMREMGenerator(renderer);
+        const room = new RoomEnvironment(renderer);
+        envTexture = pmrem.fromScene(room, 0.04).texture;
+        room.dispose();
+        pmrem.dispose();
+      }
+      scene.environment = envTexture;
+      hemi.intensity = LOOK.hemiIntensityWithEnv;
+    } else {
+      scene.environment = null;
+      hemi.intensity = LOOK.hemiIntensity;
+    }
+
+    // detail, bloom-dependent colours, particle look
+    const detailChanged = !prev || prev.detail !== gq.detail;
+    scene.traverse((o) => {
+      const mats = o.material ? (Array.isArray(o.material) ? o.material : [o.material]) : [];
+      for (const m of mats) {
+        if (detailChanged) applyDetailTo(m);
+        if (m.userData.hdrHex !== undefined) hdrColor(m, m.userData.hdrHex);
+        if (shadowsChanged) m.needsUpdate = true;
+      }
+    });
+    if (propsGroup) propsGroup.visible = gq.detail === 'detailed';
+    if (detailChanged) applyBackground();
+    pMat.color.setScalar(gq.bloom === 'on' ? LOOK.hdrBoost : 1);
+    mMat.opacity = gq.bloom === 'on' ? 0.75 : 0.55;
+
+    adaptiveScale = 1;
+    adaptFrames = [];
+    postKey = null; // rebuild the post chain on the next frame
+    postFailed = false;
+    fpsVisible(gq.showFps);
+    if (typeof document !== 'undefined') canvas.dataset.gfxPreset = gq.preset;
+  }
+
+  // Legacy API: quality tier names map onto graphics presets.
+  function setQuality(q) {
+    setGraphics({ ...(options.graphics || {}), preset: legacyPreset(q) });
+  }
+
+  function fpsVisible(on) {
+    if (typeof document === 'undefined') return;
+    let el = document.getElementById('fps-meter');
+    if (on && !el) {
+      el = document.createElement('div');
+      el.id = 'fps-meter';
+      el.className = 'fps-meter';
+      el.setAttribute('aria-hidden', 'true');
+      el.textContent = '… fps';
+      document.body.append(el);
+    }
+    if (el) el.hidden = !on;
+  }
+
+  // What the Graphics panel shows: GPU, auto choice, resolved tiers, cost.
+  function graphicsInfo(words) {
+    // the drawing buffer is the true render size (the host may be hidden
+    // behind the settings screen while this is read)
+    let px = [canvas.width, canvas.height];
+    if (px[0] <= 1 || px[1] <= 1) {
+      const ratio = Math.min(window.devicePixelRatio || 1, gq.maxRatio) * gq.scale;
+      px = [Math.round(window.innerWidth * ratio), Math.round(window.innerHeight * ratio)];
+    }
+    return {
+      gpu: options.gpu || '',
+      detected: options.detected,
+      resolved: { ...gq },
+      pixels: px,
+      summary: describeGraphics(gq, px, words),
+      fps: Math.round(fps),
+      adaptiveScale: Math.round(adaptiveScale * 100) / 100,
+      postFailed,
+    };
+  }
+
+  // -------------------------------------------------------------------------
+  // Post-processing chain (RenderPass → GTAO → bloom → grade → output → AA)
+  // -------------------------------------------------------------------------
+
+  function makePostKey(w, h) {
+    return gq.post ? [gq.ao, gq.bloom, gq.grade, gq.antialias, w, h, pixelRatio].join('|') : 'none';
+  }
+
+  // GTAO tuning for this scene (r160 GTAOPass):
+  // - its constructor mistypes the PERSPECTIVE_CAMERA define, so set it for the
+  //   orthographic market camera, and use a constant view direction (ortho
+  //   pixels all look down -Z; the shader assumes a perspective eye point);
+  // - reconstruct normals from depth instead of the pass's normal buffer, which
+  //   left a dark screen-centred block on the floor with this camera.
+  function tuneGtao(ao) {
+    const ortho = !camera.isPerspectiveCamera;
+    for (const m of [ao.gtaoMaterial, ao.depthRenderMaterial, ao.pdMaterial]) {
+      if (!m || !m.defines) continue;
+      if (ortho && m.defines.PERSPECTIVE_CAMERA !== undefined) m.defines.PERSPECTIVE_CAMERA = 0;
+      if (m.defines.NORMAL_VECTOR_TYPE !== undefined) m.defines.NORMAL_VECTOR_TYPE = 0;
+      m.needsUpdate = true;
+    }
+    const m = ao.gtaoMaterial;
+    const from = 'vec3 viewDir = normalize(-viewPos.xyz);';
+    if (ortho && m && m.fragmentShader.includes(from)) {
+      m.fragmentShader = m.fragmentShader.replace(from, 'vec3 viewDir = vec3(0.0, 0.0, 1.0);');
+    }
+  }
+
+  function disposePost() {
+    if (!composer) return;
+    for (const p of composer.passes) if (typeof p.dispose === 'function') p.dispose();
+    composer.dispose();
+    composer = null;
+  }
+
+  function buildPost(w, h) {
+    disposePost();
+    if (!gq.post || postFailed) return;
+    const pw = Math.max(1, Math.round(w * pixelRatio));
+    const ph = Math.max(1, Math.round(h * pixelRatio));
+    try {
+      const target = new THREE.WebGLRenderTarget(pw, ph, {
+        type: THREE.HalfFloatType,
+        samples: gq.antialias === 'msaa' && renderer.capabilities.isWebGL2 ? 4 : 0,
+      });
+      const c = new EffectComposer(renderer, target);
+      c.setPixelRatio(pixelRatio);
+      c.setSize(w, h);
+      c.addPass(new RenderPass(scene, camera));
+      if (gq.ao !== 'off') {
+        const high = gq.ao === 'high';
+        const ao = new GTAOPass(scene, camera, pw, ph);
+        tuneGtao(ao);
+        ao.output = GTAOPass.OUTPUT.Default;
+        ao.blendIntensity = 0.85;
+        ao.updateGtaoMaterial({ radius: 0.45, distanceExponent: 1.4, thickness: 1.2, scale: 1.0, samples: high ? 16 : 8 });
+        ao.updatePdMaterial({ lumaPhi: 10, depthPhi: 2, normalPhi: 3, radius: high ? 6 : 4, rings: 2, samples: high ? 16 : 8 });
+        c.addPass(ao);
+      }
+      if (gq.bloom === 'on') {
+        const b = LOOK.bloom;
+        c.addPass(new UnrealBloomPass(new THREE.Vector2(pw, ph), b.strength, b.radius, b.threshold));
+      }
+      if (gq.grade === 'on') c.addPass(new ShaderPass(GradeShader));
+      c.addPass(new OutputPass());
+      if (gq.antialias === 'smaa') c.addPass(new SMAAPass(pw, ph));
+      if (gq.antialias === 'fxaa') {
+        const fxaa = new ShaderPass(FXAAShader);
+        fxaa.material.uniforms.resolution.value.set(1 / pw, 1 / ph);
+        c.addPass(fxaa);
+      }
+      composer = c;
+    } catch (_) {
+      // Post-processing is an enhancement: render directly and let the
+      // Graphics panel say so (no console output, by design).
+      postFailed = true;
+      disposePost();
+    }
+  }
+
+  // Adaptive resolution: step the scale down when frames are slow, back up when fast.
+  function adapt(dtMs) {
+    adaptFrames.push(dtMs);
+    if (adaptFrames.length < ADAPT.frames) return false;
+    const avg = adaptFrames.reduce((a, b) => a + b, 0) / adaptFrames.length;
+    adaptFrames = [];
+    fps = 1000 / avg;
+    const el = typeof document !== 'undefined' ? document.getElementById('fps-meter') : null;
+    if (el && !el.hidden) el.textContent = `${Math.round(fps)} fps · ${Math.round(pixelRatio * 100) / 100}×`;
+    if (!gq.adaptive) return false;
+    const before = adaptiveScale;
+    if (avg > ADAPT.slowMs) adaptiveScale = Math.max(ADAPT.min, adaptiveScale - ADAPT.down);
+    else if (avg < ADAPT.fastMs && adaptiveScale < 1) adaptiveScale = Math.min(1, adaptiveScale + ADAPT.up);
+    return before !== adaptiveScale;
   }
 
   function setReducedMotion(b) {
@@ -1061,6 +1520,8 @@ export function createRenderer(container, opts = {}) {
     if (options.reducedMotion) {
       shake = 0;
       pendingEffects.length = 0;
+      for (const v of customerViews.values()) v.group.position.y = 0;
+      for (const v of Object.values(staffViews)) v.group.position.y = 0;
     }
   }
 
@@ -1084,15 +1545,19 @@ export function createRenderer(container, opts = {}) {
     const safeAspect = (container.clientWidth || 1) / Math.max(120, hh - insTop.top - insTop.bottom);
     baseViewH = Math.max(needH, needW / safeAspect);
     applyOrtho();
-    // key light shadow volume covers the room
-    const ext = Math.max(w, h) / 2 + 3;
-    keyLight.position.set(ext * 0.8, ext * 1.4, ext * 0.6);
+    // key light shadow volume fitted tightly to the room (plus the planters
+    // just outside the walls): the room's bounding circle, seen from the light.
+    const ext = Math.hypot(w, h) / 2 + 1.2;
+    const dir = new THREE.Vector3(...LOOK.keyDir).normalize();
+    const dist = ext * 2.5;
+    keyLight.position.set(dir.x * dist, dir.y * dist, dir.z * dist);
     keyLight.target.position.set(0, 0, 0);
     keyLight.shadow.camera.left = -ext;
     keyLight.shadow.camera.right = ext;
     keyLight.shadow.camera.top = ext;
     keyLight.shadow.camera.bottom = -ext;
-    keyLight.shadow.camera.far = ext * 4;
+    keyLight.shadow.camera.near = Math.max(0.1, dist - ext * 1.6);
+    keyLight.shadow.camera.far = dist + ext * 1.6;
     keyLight.shadow.camera.updateProjectionMatrix();
   }
 
@@ -1373,8 +1838,17 @@ export function createRenderer(container, opts = {}) {
     const w = container.clientWidth || 1;
     const h = container.clientHeight || 1;
     renderer.setSize(w, h, false);
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, QUALITY[options.quality].pixelRatio));
     if (grid.w) updateFraming(); else applyOrtho();
+  }
+
+  // Pixel ratio = min(dpr, preset cap) × render scale × adaptive scale.
+  function syncPixelRatio(force) {
+    const ratio = Math.min(window.devicePixelRatio || 1, gq.maxRatio) * gq.scale * adaptiveScale;
+    if (force || Math.abs(ratio - pixelRatio) > 1e-4) {
+      pixelRatio = ratio;
+      renderer.setPixelRatio(ratio);
+      renderer.setSize(container.clientWidth || 1, container.clientHeight || 1, false);
+    }
   }
 
   // HUD bands change without a resize (banner shows, mirror grows): refit.
@@ -1429,12 +1903,34 @@ export function createRenderer(container, opts = {}) {
         m.scale.setScalar(pulse);
         m.material.opacity = 0.6 + Math.sin(elapsed * 5) * 0.25;
       }
+      // gentle idle bob for guests standing still and for staff
+      if (!options.reducedMotion) {
+        for (const [id, view] of customerViews) {
+          const phase = (hashId(id) % 628) / 100;
+          const still = view.lerpT >= 1;
+          const target = still ? Math.abs(Math.sin(elapsed * 2.2 + phase)) * LOOK.idleBob : 0;
+          view.group.position.y += (target - view.group.position.y) * Math.min(1, dt * 10);
+        }
+        for (const [role, view] of Object.entries(staffViews)) {
+          view.group.position.y = Math.abs(Math.sin(elapsed * 1.6 + role.length)) * LOOK.idleBob * 0.6;
+        }
+      }
       // dispatch queued effects
       while (pendingEffects.length) spawnBurst(pendingEffects.shift());
       updateParticles(dt);
+      updateMotes();
     }
 
-    renderer.render(scene, camera);
+    const rescale = adapt(dt * 1000);
+    syncPixelRatio(rescale);
+    const w = container.clientWidth || 1, h = container.clientHeight || 1;
+    const key = makePostKey(w, h);
+    if (key !== postKey) {
+      postKey = key;
+      buildPost(w, h);
+    }
+    if (composer) composer.render(dt);
+    else renderer.render(scene, camera);
   }
 
   function updateLiftFlash(view, dt) {
@@ -1489,8 +1985,14 @@ export function createRenderer(container, opts = {}) {
     scene.remove(fxGroup);
     if (groundMesh) { scene.remove(groundMesh); disposeObject(groundMesh); groundMesh = null; }
     disposeObject(scene);
-    for (const g of [boxGeo, ringGeo, discGeo, bodyGeo, headGeo, goodGeo, pGeo]) g.dispose();
+    for (const g of [boxGeo, ringGeo, discGeo, bodyGeo, headGeo, goodGeo, pGeo, mGeo]) g.dispose();
     pMat.dispose();
+    mMat.dispose();
+    disposePost();
+    for (const t of Object.values(tex)) t.dispose();
+    if (skyTex) skyTex.dispose();
+    if (envTexture) envTexture.dispose();
+    fpsVisible(false);
     renderer.dispose();
     if (canvas.parentNode === container) container.removeChild(canvas);
   }
@@ -1499,7 +2001,8 @@ export function createRenderer(container, opts = {}) {
   // Init + public API
   // -------------------------------------------------------------------------
 
-  setQuality(options.quality);
+  { const initial = options.graphics; options.graphics = null; setGraphics(initial); }
+  syncPixelRatio(true);
   resize();
   if (options.camera !== FRAMING.defaultPreset) setCamera(options.camera);
   resetCamera();
@@ -1509,6 +2012,8 @@ export function createRenderer(container, opts = {}) {
     syncState,
     setHighlight,
     setQuality,
+    setGraphics,
+    graphicsInfo,
     setReducedMotion,
     setColorblind,
     setTheme,

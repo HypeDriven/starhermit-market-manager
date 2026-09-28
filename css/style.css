@@ -138,6 +138,33 @@ body { height: 100dvh; overflow: hidden; display: flex; flex-direction: column; 
 }
 html.high-contrast .screen[data-screen="title"] { background-image: none; }
 
+/* Title backdrop polish (graphics detail: detailed): a slow drifting sunbeam
+   sheen and a gentle breathing zoom. Frozen by reduced motion. */
+html[data-gfx-detail="detailed"]:not(.high-contrast) .screen[data-screen="title"] {
+  position: relative;
+  isolation: isolate;
+  background-image: linear-gradient(rgba(253, 243, 227, 0.42), rgba(253, 243, 227, 0.74)), url("../assets/title-backdrop.webp");
+}
+html[data-gfx-detail="detailed"]:not(.high-contrast) .screen[data-screen="title"]::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(120% 80% at 18% 0%, rgba(255, 236, 196, 0.55), rgba(255, 236, 196, 0) 60%),
+    linear-gradient(115deg, rgba(255, 255, 255, 0) 30%, rgba(255, 246, 222, 0.38) 45%, rgba(255, 255, 255, 0) 60%);
+  background-size: 100% 100%, 250% 100%;
+  animation: title-sheen 14s ease-in-out infinite alternate;
+}
+html[data-gfx-detail="detailed"]:not(.high-contrast) .title-panel {
+  box-shadow: 0 18px 48px rgba(97, 62, 28, 0.22), 0 2px 6px rgba(97, 62, 28, 0.12);
+}
+@keyframes title-sheen {
+  from { background-position: 0 0, 100% 0; }
+  to { background-position: 0 0, 0% 0; }
+}
+
 .results-banner {
   display: block;
   width: 100%;
@@ -392,6 +419,40 @@ html:not(.force-mirror) .board-mirror { /* compact summary only; full list is vi
 #settings-form input[type="range"] { flex: 1; max-width: 220px; min-height: var(--tap); }
 #settings-form select { font: inherit; padding: 8px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); min-height: var(--tap); }
 #settings-form input[type="checkbox"] { width: 22px; height: 22px; }
+
+/* Graphics section (built by src/gfx-panel.js) */
+#settings-form .gfx-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 330px), 1fr)); gap: 4px 20px; }
+#settings-form .gfx-row { min-width: 0; }
+#settings-form .gfx-label { min-width: 0; overflow-wrap: anywhere; }
+#settings-form .gfx-row select { max-width: 60%; flex-shrink: 1; min-width: 0; }
+#settings-form .gfx-range { flex-wrap: nowrap; }
+#settings-form .gfx-range input[type="range"] { min-width: 0; }
+#settings-form .gfx-value { min-width: 4ch; text-align: end; font-variant-numeric: tabular-nums; flex-shrink: 0; }
+@media (max-width: 520px) {
+  /* phones: label above a full-width select so "From preset (…)" never truncates */
+  #settings-form .gfx-grid > .gfx-row,
+  #settings-form .gfx-row:has(> select) { flex-direction: column; align-items: stretch; gap: 4px; }
+  #settings-form .gfx-row select { max-width: 100%; width: 100%; }
+}
+.gfx-summary { margin: 4px 0 0; font-size: 0.9rem; overflow-wrap: anywhere; }
+.gfx-note { margin: 0; font-size: 0.9rem; color: var(--warn); }
+.gfx-note[hidden] { display: none; }
+
+/* Frame-rate readout (Show frame rate): bottom-left, never catches input. */
+.fps-meter {
+  position: fixed;
+  left: 6px;
+  bottom: calc(6px + env(safe-area-inset-bottom));
+  z-index: 50;
+  pointer-events: none;
+  padding: 2px 8px;
+  border-radius: 8px;
+  background: rgba(61, 43, 31, 0.72);
+  color: #fff7ee;
+  font: 600 12px/1.4 var(--font);
+  font-variant-numeric: tabular-nums;
+}
+.fps-meter[hidden] { display: none; }
 
 /* ---------------------------------------------------------------- transient */
 .countdown {

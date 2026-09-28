@@ -28,7 +28,10 @@ short, and spend the takings on staff, upgrades and new departments before closi
 | `src/content.js` | All content as data: department catalog, themes, maps, 40 journey stages, 4 tutorials, 5 challenges, practice and daily generators, offline validators. |
 | `src/session.js` | Session object (command log, hash chain, undo, replay envelope, snapshot/resume), settings, progression, achievements. |
 | `src/ui.js` | DOM shell: screen switching, HUD, context/staff drawers, results table, help cards, the accessibility board mirror. |
-| `src/render.js` | Three.js scene: market geometry, customer figures, particles, camera framing, picking, quality tiers, colorblind palettes. |
+| `src/render.js` | Three.js scene: market geometry, customer figures, particles, camera framing, picking, colorblind palettes, and live graphics settings (`setGraphics`, `graphicsInfo`, post-processing chain, adaptive resolution). |
+| `src/gfx.js` | Pure graphics quality model: presets, categories, GPU detection (`detectPreset`, `gpuName`), `resolve`, `presetTier`, `choosePreset`, `describe`. No three.js. |
+| `src/gfx-panel.js` | Settings › Graphics controls, built into `#gfx-section` and localized for all nine shipped locales. |
+| `lib/addons/` | three r160 addons (post-processing passes, their shaders, `RoomEnvironment`), vendored from the same 0.160.1 release as `lib/three.module.min.js`; imported via the `three/addons/` import-map entry. |
 | `src/audio.js` | WebAudio: authored `.opus` one-shots with synthesised fallbacks, ambience bed, two-layer adaptive music. |
 | `src/platform.js` | StarHermit adapter: launch-token auth, identity, cloud saves, read-only platform leaderboards; own-server dev backend and local-board fallback. |
 | `src/rng.js` | mulberry32 seeded RNG, stable stringify, FNV-1a state hashing. |
@@ -36,6 +39,7 @@ short, and spend the takings on staff, upgrades and new departments before closi
 | `sfx/` | 15 Opus clips plus `manifest.txt` (canonical), `manifest.json` (generator), `manifest.md` (legacy prompt table). |
 | `assets/` | `title-backdrop.webp`, `results-banner.webp`. |
 | `tests/rules.test.mjs` | 75 assertions over the engine, content, session and progression. `npm test`. |
+| `tests/gfx.test.mjs` | `node --test` unit tests for the graphics model and panel locales. Part of `npm test`. |
 | `tests/e2e.mjs` | Playwright-core playthrough of the real UI at desktop and mobile. `npm run test:e2e`. |
 
 ## 2. Vision and design pillars
@@ -291,8 +295,28 @@ emissive for 0.45 s when refilled or unlocked.
 than the middle third during play; the HUD is a thin strip.
 
 **Reduced motion** (setting or `prefers-reduced-motion`) removes the countdown, all CSS transitions and
-animations, camera shake and particle bursts; state changes become instant. Quality tiers cap particles at
-300/800/2000 and drop shadows entirely at Low.
+animations, camera shake, particle bursts, ambient motes, the idle bob and the title sheen; state changes become
+instant. The Particles setting caps bursts at 300 (Low) or 2000 (High).
+
+**Graphics.** The floor is lit by a hemisphere sky fill and a key directional light from the front-left, so its
+PCF soft shadows fall where the camera can see them; the shadow box is fitted to the room's bounding circle.
+Output is ACES filmic tone-mapped sRGB. Optional effects: image-based lighting from a PMREM-filtered
+`RoomEnvironment` (subtle reflections; the hemisphere fill drops while it is on), procedural surface detail
+(canvas-drawn tile bevels and grout, grass, plaster courses, wood planks, striped awnings, a sky-to-haze backdrop
+gradient, clearcoat on goods, counters, planters and guests, and decorative planters outside the walls), GTAO
+contact shadows, bloom limited to highlights (threshold 0.92; particles and highlight rings are pushed above 1.0
+so coins, confetti and target rings glow), a colour grade (gentle S-curve, saturation, warm highlights/cool
+shadows) with vignette, FXAA/SMAA/MSAA, and ambient warm motes drifting over the floor. Waiting guests and staff
+bob gently. With surface detail on, the title backdrop gets a slow sunbeam sheen. Settings › **Graphics** offers
+Quality (Auto (detected: tier) — chosen from the WebGL unmasked renderer string: software renderers get Low,
+discrete GPUs and Apple M-series High, the rest Balanced, capped at Balanced on touch devices — or Low, Balanced,
+High, Ultra), Render scale (50–200 %), one "From preset (…)" select per category (Shadows off/low/medium/high,
+Ambient occlusion off/on/high, Bloom, Colour grade, Anti-aliasing off/FXAA/SMAA/MSAA, Reflections, Surface detail
+plain/detailed, Particles low/high), Adaptive resolution (on by default) and Show frame rate (a bottom-left
+readout, input-transparent), plus a summary line "GPU · cost · W×H px" and a note if post-processing is
+unavailable. Choosing a preset clears the per-category overrides. Changes apply live and persist in
+`mm.settings.v1` as `settings.graphics` (older saves' `quality` is migrated). The chosen preset is mirrored to
+`data-gfx-preset` on `<html>` and on the canvas.
 
 **Visual assets the design calls for:** a title/menu backdrop that shows the fantasy before the player commits
 (shipped), a results illustration that reads as "shift over" (shipped), a 16:9 cover for the platform grid
@@ -343,7 +367,9 @@ prompts via `content.js`). `<html lang="en">` is fixed and there is no locale pi
 locales are design intent, not shipped behaviour (§17). Numbers and clocks are already formatted only at the
 presentation layer (`ticksToClock`, the results table), which is the seam a locale layer plugs into. Layout
 already tolerates ~40 % string expansion: panels wrap, buttons size to content with a 44 px minimum, and no
-label is positioned by a fixed pixel width.
+label is positioned by a fixed pixel width. The one exception is Settings › Graphics: `src/gfx-panel.js` carries its
+strings for all nine locales and picks one from `navigator.languages` (exact match, then language fallback —
+es → es-419, fr → fr-FR, pt → pt-BR, en-AU/NZ/IE/IN/ZA → en-GB — else en-US), setting `lang` on the fieldset.
 
 ## 11. Accessibility
 
@@ -420,19 +446,31 @@ file under `.mm-data/` (override with `MM_DATA_DIR`), written atomically-ish and
 `MAX_CATCHUP_STEPS = 4` catch-up ticks after a stall; backgrounding pauses and the pause screen reports
 "while you were away". Five consecutive loop errors stop the loop rather than spinning.
 
-**Performance budgets.** Quality tiers set pixel ratio (1 / 1.5 / 2), shadow map (off / 1024 / 2048), particle
-cap (300 / 800 / 2000) and prop density; Auto picks from the device. Scene rebuilds only happen on stage load;
-per-tick work is transform updates plus particle integration.
+**Performance budgets.** Presets (`src/gfx.js`): Low — pixel-ratio cap 1, no shadows, no post chain, no
+reflections, plain surfaces, 300 particles (as cheap as the original Low); Balanced — cap 1.5, 1024² shadows,
+bloom, grade, FXAA, reflections, detail; High — cap 2, 2048² shadows, GTAO, SMAA; Ultra — 4096² shadows, full
+GTAO, MSAA and 1.25× render scale. Pixel ratio = min(device ratio, cap) × render scale × adaptive scale; adaptive
+resolution averages 90 frames and steps down 0.1 (to 0.6) above 26 ms or back up 0.05 below 14 ms. The
+EffectComposer chain (RenderPass → GTAO → UnrealBloom → grade → OutputPass → SMAA/FXAA, HalfFloat target with 4×
+MSAA for the MSAA option) is built only when some effect needs it and rebuilt when its key (effects, size, ratio)
+changes; if it throws, the scene renders directly and the Graphics panel says so, without console output. The
+canvas context itself never uses MSAA. GTAO is adjusted for the orthographic camera (r160 mistypes its
+`PERSPECTIVE_CAMERA` define and assumes a perspective eye) and reconstructs normals from depth. Scene rebuilds
+only happen on stage load; detail and effect changes toggle maps/defines on existing materials; per-tick work is
+transform updates plus particle integration.
 
 **How the e2e drives the real UI.** `tests/e2e.mjs` boots its own static server, launches Chrome via
 playwright-core, and clicks only visible DOM: help, settings (asserting the `high-contrast` class lands on
-`<html>`), Play, the Journey card, the first stage card, Start, the canvas itself, hint, staff toggle, pause →
-settings → resume, then plays the shift to results through HUD and mirror buttons. It fails on any page error
-or non-allowlisted console error.
+`<html>`), Settings › Graphics (Low then High applied via `data-gfx-preset` and the summary, a Bloom override,
+render scale, show-frame-rate, surviving a reload, a preset clearing overrides), Play, the Journey card, the first stage card, Start, the canvas itself, hint, staff toggle, pause →
+settings → resume, Ultra then Low switched live mid-shift (canvas `data-gfx-preset`), then plays the shift to results through HUD and mirror buttons. It fails on any page error
+or non-allowlisted console error or warning.
 
 ## 14. Testing and acceptance criteria
 
-`npm test` (`tests/rules.test.mjs`, 75 assertions) covers: map parsing and construction errors, serialization
+`npm test` runs `tests/rules.test.mjs` (75 assertions) and `tests/gfx.test.mjs` (GPU detection, preset
+resolution, overrides, render-scale clamping, preset-clears-overrides, locale coverage of the Graphics panel).
+The rules suite covers: map parsing and construction errors, serialization
 round-trips and version rejection, every `validateCommand` reason, restock/upgrade/unlock/hire economics, the
 customer lifecycle (browse, take, queue, serve, angry, empty), staff automation cadence, all three terminal
 paths, the score formula and tie-break shape, RNG and replay determinism, command-id idempotency, fuzzed
@@ -470,6 +508,7 @@ and navigation returns to the title — with zero page errors and zero unexpecte
 | `sfx/manifest.json` | Generator input for `tools/generate_sfx_from_manifests.py` | Authored | In sync with `manifest.txt` |
 | Market geometry, guests, props, particles | The entire 3D scene | Procedural Three.js in `src/render.js` | Shipped — by design, no imported meshes |
 | `lib/three.module.min.js` | Renderer | Three.js, vendored | Shipped |
+| `lib/addons/` | Post-processing passes, shaders, `RoomEnvironment` | Three.js 0.160.1 examples, vendored | Shipped |
 
 No animation clips are needed: guests are simplified capsule figures moved by tile interpolation, not skinned
 characters, so Kimodo has nothing to author for this game.

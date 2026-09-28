@@ -9,7 +9,7 @@
   <title>Market Manager</title>
   <link rel="stylesheet" href="./css/style.css">
   <script type="importmap">
-    { "imports": { "three": "./lib/three.module.min.js" } }
+    { "imports": { "three": "./lib/three.module.min.js", "three/addons/": "./lib/addons/" } }
   </script>
 </head>
 <body>
@@ -185,14 +185,6 @@
             </fieldset>
             <fieldset>
               <legend>Display</legend>
-              <label>Quality
-                <select id="set-quality">
-                  <option value="auto">Auto</option>
-                  <option value="low">Low</option>
-                  <option value="medium">Medium</option>
-                  <option value="high">High</option>
-                </select>
-              </label>
               <label>Theme
                 <select id="set-theme">
                   <option value="">Stage default</option>
@@ -213,6 +205,10 @@
                   <option value="tritanopia">Tritanopia-safe</option>
                 </select>
               </label>
+            </fieldset>
+            <!-- Graphics: controls are built and localized by src/gfx-panel.js. -->
+            <fieldset id="gfx-section" class="gfx-section" data-gfx-section>
+              <legend id="gfx-legend">Graphics</legend>
             </fieldset>
             <fieldset>
               <legend>Accessibility and controls</legend>

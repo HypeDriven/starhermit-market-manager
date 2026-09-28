@@ -144,7 +144,7 @@ async function runPass(browser, { name, viewport, hasTouch }) {
   const errors = [];
   page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
   page.on('console', (m) => {
-    if (m.type() !== 'error' || browserNoise.test(m.text())) return;
+    if ((m.type() !== 'error' && m.type() !== 'warning') || browserNoise.test(m.text())) return;
     const loc = m.location()?.url || '';
     // Benign: the game's one backend probe (/api/v1/time) 404s on this static
     // server; src/platform.js is designed to fall back to offline play.
@@ -188,6 +188,57 @@ async function runPass(browser, { name, viewport, hasTouch }) {
       if (!applied) throw new Error('high-contrast setting not applied to <html>');
       await page.uncheck('#set-high-contrast');
       await shot('settings');
+      await page.click('#btn-settings-close');
+      await screenVisible(page, 'title');
+    });
+
+    await step('settings → Graphics: presets, override, persistence', async () => {
+      const gfxState = () => page.evaluate(() => ({
+        preset: document.documentElement.dataset.gfxPreset,
+        auto: document.documentElement.dataset.gfxAuto,
+        summary: document.getElementById('gfx-summary').textContent,
+        quality: document.getElementById('set-quality').value,
+        bloom: document.getElementById('gfx-bloom').value,
+      }));
+      await page.click('#btn-settings-title');
+      await screenVisible(page, 'settings');
+      await page.locator('#gfx-section').scrollIntoViewIfNeeded();
+      // Auto shows the detected tier; headless software GL resolves to Low.
+      const autoLabel = await page.textContent('#set-quality option[value="auto"]');
+      if (!/Auto \(detected: \w+\)/.test(autoLabel)) throw new Error('auto label: ' + autoLabel);
+      await page.selectOption('#set-quality', 'low');
+      let st = await gfxState();
+      if (st.preset !== 'low' || !/no shadows/.test(st.summary)) throw new Error('Low not applied: ' + JSON.stringify(st));
+      await page.selectOption('#set-quality', 'high');
+      st = await gfxState();
+      if (st.preset !== 'high' || !/2048² shadows/.test(st.summary) || !/bloom/.test(st.summary)) throw new Error('High not applied: ' + JSON.stringify(st));
+      const fromPreset = await page.textContent('#gfx-bloom option[value="preset"]');
+      if (!/From preset \(On\)/.test(fromPreset)) throw new Error('bloom preset label: ' + fromPreset);
+      await page.selectOption('#gfx-bloom', 'off');
+      st = await gfxState();
+      if (/bloom/.test(st.summary)) throw new Error('bloom override not applied: ' + st.summary);
+      await page.fill('#gfx-render-scale', '150');
+      if ((await page.textContent('#gfx-render-scale-value')) !== '150%') throw new Error('render scale label did not update');
+      await page.check('#gfx-show-fps');
+      await shot('graphics');
+      // survives reload
+      await page.reload({ waitUntil: 'load' });
+      await screenVisible(page, 'title');
+      await page.click('#btn-settings-title');
+      await screenVisible(page, 'settings');
+      st = await gfxState();
+      if (st.preset !== 'high' || st.quality !== 'high' || st.bloom !== 'off') throw new Error('graphics not persisted: ' + JSON.stringify(st));
+      if ((await page.inputValue('#gfx-render-scale')) !== '150') throw new Error('render scale not persisted');
+      // choosing a preset clears overrides
+      await page.selectOption('#set-quality', 'low');
+      st = await gfxState();
+      if (st.bloom !== 'preset') throw new Error('preset did not clear overrides');
+      // back to Auto (software GL → Low) so the playthrough stays fast
+      await page.fill('#gfx-render-scale', '100');
+      await page.uncheck('#gfx-show-fps');
+      await page.selectOption('#set-quality', 'auto');
+      st = await gfxState();
+      if (st.auto !== 'true') throw new Error('auto not restored');
       await page.click('#btn-settings-close');
       await screenVisible(page, 'title');
     });
@@ -255,6 +306,31 @@ async function runPass(browser, { name, viewport, hasTouch }) {
       await screenVisible(page, 'game');
     });
 
+    await step('in-game Graphics: Ultra and Low render live without errors', async () => {
+      for (const preset of ['ultra', 'low']) {
+        await page.click('#btn-pause');
+        await screenVisible(page, 'pause');
+        await page.click('#btn-pause-settings');
+        await screenVisible(page, 'settings');
+        await page.selectOption('#set-quality', preset);
+        await page.click('#btn-settings-close');
+        await screenVisible(page, 'pause');
+        await page.click('#btn-resume');
+        await screenVisible(page, 'game');
+        await page.waitForTimeout(1200);
+        const canvasPreset = await page.evaluate(() => document.querySelector('#scene-host canvas')?.dataset.gfxPreset || null);
+        if (runPass.webgl && canvasPreset !== preset) throw new Error(`canvas preset ${canvasPreset}, expected ${preset}`);
+        await shot(`floor-${preset}`);
+      }
+      // restore Auto for the rest of the shift
+      await page.click('#btn-pause');
+      await page.click('#btn-pause-settings');
+      await page.selectOption('#set-quality', 'auto');
+      await page.click('#btn-settings-close');
+      await page.click('#btn-resume');
+      await screenVisible(page, 'game');
+    });
+
     await step('play the shift to the results screen', async () => {
       await shot('play-early');
       const out = await playShift(page, shot);
@@ -291,7 +367,7 @@ let failed = false;
 try {
   browser = await chromium.launch({
     executablePath: '/usr/bin/google-chrome',
-    args: ['--no-sandbox', '--enable-unsafe-swiftshader'],
+    args: ['--no-sandbox', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'],
   });
 
   const desktopErrors = await runPass(browser, { name: 'desktop', viewport: { width: 1280, height: 800 }, hasTouch: false });

@@ -66,7 +66,10 @@ export function loadKey(key) {
 
 export const DEFAULT_SETTINGS = {
   music: 0.6, effects: 0.8, ambience: 0.5, voice: 0.7,
-  quality: 'auto', // auto | low | medium | high
+  // Graphics (see gfx.js): { preset: 'auto'|low|balanced|high|ultra,
+  // render_scale, adaptive, show_fps, <category>: tier }. Older saves carry a
+  // `quality` field instead, which main.js migrates on load.
+  graphics: null,
   theme: null,     // null = stage default
   reducedMotion: false,
   highContrast: false,
