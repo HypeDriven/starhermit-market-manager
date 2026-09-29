@@ -535,3 +535,7 @@ characters, so Kimodo has nothing to author for this game.
    change, and `data-i18n` keys on the static markup. Today every string is inline English.
 2. **Voice/announcer content** on the reserved `voice` bus (shift-start and last-minute callouts).
 3. **Timing assist** as an actual rules-level assist (widened patience) in unranked modes only.
+
+## Browser interference
+
+`browser-guard.js` (loaded from `index.html`) suppresses browser UI that gets in the way of play: the right-click context menu, the iOS long-press callout, copy / cut / paste, and page text selection. Text fields (inputs, textareas, selects, contenteditable) keep normal selection, context menu and clipboard behaviour.
