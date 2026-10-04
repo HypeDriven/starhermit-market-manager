@@ -5,7 +5,7 @@
   "private": true,
   "description": "Market Manager \u2014 a bright isometric neighborhood market management game.",
   "scripts": {
-    "test": "node tests/rules.test.mjs && node --test tests/gfx.test.mjs",
+    "test": "node tests/rules.test.mjs && node --test tests/gfx.test.mjs tests/platform.test.mjs",
     "test:e2e": "node tests/e2e.mjs",
     "start": "node server.js 8080"
   },

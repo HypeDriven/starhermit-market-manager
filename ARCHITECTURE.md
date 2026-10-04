@@ -15,7 +15,7 @@ first load.
 - `src/ui.js` — DOM shell: screens, HUD, panels, accessibility. Owned by UI implementation.
 - `src/audio.js` — WebAudio synth SFX + adaptive music, volume buses. Owned by UI implementation.
 - `src/platform.js` — StarHermit adapter: launch-token auth + refresh, profile nickname, cloud-save mirror,
-  read-only platform leaderboards; own-server dev backend and local-board fallback. Contract below.
+  read-only platform leaderboards; local boards. Contract below.
 - `src/main.js` — bootstrap + glue. Owns the game loop.
 - `server.js` — optional Node authoritative script (daily seeds, score validation, leaderboards).
 - `tests/rules.test.mjs` — `node tests/rules.test.mjs` must stay green.
@@ -131,7 +131,7 @@ Hosted platform routes (read-only leaderboards; no client score submission):
 - `GET`/`PUT /api/v1/me/cloud-saves/{slug}` → stored-zip + base64 save doc; remote wins on conflict
 - Rate limit: HTTP 429 with `{ error }` — treat as recoverable.
 
-Own-server routes (the game's server.js, local dev backend — never called in hosted mode):
+Legacy own-server routes in server.js (no longer called by the client, standalone or hosted; signed-in play reads only `GET /api/v1/time` from the platform):
 
 - `GET /api/v1/time` → `{ now: <unix ms> }` (round-trip adjusted offset for daily boundary)
 - `GET /api/v1/daily` → `{ date: 'YYYY-MM-DD', seed: <uint32>, excluded: false }`

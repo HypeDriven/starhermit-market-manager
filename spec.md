@@ -33,13 +33,16 @@ short, and spend the takings on staff, upgrades and new departments before closi
 | `src/gfx-panel.js` | Settings › Graphics controls, built into `#gfx-section` and localized for all nine shipped locales. |
 | `lib/addons/` | three r160 addons (post-processing passes, their shaders, `RoomEnvironment`), vendored from the same 0.160.1 release as `lib/three.module.min.js`; imported via the `three/addons/` import-map entry. |
 | `src/audio.js` | WebAudio: authored `.opus` one-shots with synthesised fallbacks, ambience bed, two-layer adaptive music. |
-| `src/platform.js` | StarHermit adapter: launch-token auth, identity, cloud saves, read-only platform leaderboards; own-server dev backend and local-board fallback. |
+| `starhermit-sdk.js` | Shared StarHermit client (unmodified copy). |
+| `src/platform.js` | Adapter over the SDK: identity, sign-in/invite, cloud saves, settings KV, key bindings, read-only platform leaderboard; local boards. |
+| `src/sh-strings.js` | Account strings in the nine locales. |
 | `src/rng.js` | mulberry32 seeded RNG, stable stringify, FNV-1a state hashing. |
-| `server.js` | Static host + `/api/v1` time, daily, scores, leaderboard, heartbeat. Replays every submission server-side. |
+| `server.js` | Local static host (its legacy `/api/v1` routes are not called by the client). |
 | `sfx/` | 15 Opus clips plus `manifest.txt` (canonical), `manifest.json` (generator), `manifest.md` (legacy prompt table). |
 | `assets/` | `title-backdrop.webp`, `results-banner.webp`. |
 | `tests/rules.test.mjs` | 75 assertions over the engine, content, session and progression. `npm test`. |
 | `tests/gfx.test.mjs` | `node --test` unit tests for the graphics model and panel locales. Part of `npm test`. |
+| `tests/platform.test.mjs` | `node --test` tests for the StarHermit adapter over the real SDK with a stubbed fetch (token, nickname, `game:<slug>` cloud save, settings KV, bindings, invite, zero fetches standalone). Part of `npm test`. |
 | `tests/e2e.mjs` | Playwright-core playthrough of the real UI at desktop and mobile. `npm run test:e2e`. |
 
 ## 2. Vision and design pillars
@@ -193,10 +196,10 @@ bounded 50-deep stack of previous states and pops the command off the log so rep
 |---|---|---|---|
 | **Learn** | 4 lessons (`t01`–`t04`) | Step-gated banners that require the taught command; verbs disabled until taught; long patience (60) | No |
 | **Journey** | 40 stages `j01`–`j40` | Authored curve; stage N+1 unlocks by beating N; every 4th stage is a `mastery` test | No — progress saved locally, cloud-mirrored when signed in |
-| **Daily** | `dailyConfig(YYYY-MM-DD)` | One seed per UTC day from `hash('market-manager-daily-'+date)`; 2–4 departments, map, money, spawn rate, patience, goal and theme all derived from that seed | Yes — against the own-server backend only; on-platform the board is read-only |
+| **Daily** | `dailyConfig(YYYY-MM-DD)` | One seed per UTC day from `hash('market-manager-daily-'+date)`; 2–4 departments, map, money, spawn rate, patience, goal and theme all derived from that seed | Local board (personal best); on-platform the board is read-only |
 | **Practice** | relaxed / standard / intense | Spawn 12/8/5, patience 48/36/28, goal serve 15/22/32, starting money 120/100/90; **undo enabled** | No |
 | **Challenge** | 5 stages `c01`–`c05` | Constraints: 10-move limit; 110-tick speed shift; every shelf starts empty; single checkout at spawn 6; hiring disabled | No — progress saved locally, cloud-mirrored when signed in |
-| **Score chase** | any beaten stage | Same rules, submission on | Yes — against the own-server backend only; on-platform the board is read-only |
+| **Score chase** | any beaten stage | Same rules, submission on | Local board (personal best); on-platform the board is read-only |
 
 **Difficulty curve (Journey).** Blocks of four: block 1 bakery-only restock/serve; block 2 adds a second
 department and `unlock`; later blocks add checkouts, `hire`, `upgrade`, the split `lanes` floor and five-department
@@ -396,33 +399,42 @@ es → es-419, fr → fr-FR, pt → pt-BR, en-AU/NZ/IE/IN/ZA → en-GB — else 
 
 `starhermit.txt` declares `name`, `launch=index.html`, `owner`, `server=server.js`, `cover=coverart.png`.
 
-**Own server (`server.js`, local dev backend).** When the game is served by its own static host, the
-client probes `GET /api/v1/time` (round-trip-adjusted offset for the UTC daily boundary), reads the day
-via `GET /api/v1/daily`, submits runs with `POST /api/v1/scores` (the server resolves the *authoritative*
-published config for the submitted content id, rejects ids that do not resolve (`unknown-content`) and
-seeds that disagree (`seed-mismatch`), replays with `verifyReplay`, and rejects implausible durations
-computed from the published `maxTicks`; idempotent on `sessionId + configId`), reads ranked entries via
-`GET /api/v1/leaderboard?board=&date=&configId=`, and pings `POST /api/v1/heartbeat` while a round is
-live. Daily and score-chase modes are ranked only against this backend.
+**Standalone (no launch token).** The client makes no own-server request of any kind (no time probe,
+daily, scores, leaderboard or heartbeat): the UTC daily boundary uses the local clock, and every daily /
+score-chase run records to the local board. `server.js` is only a static host for local play and tests.
 
-**Hosted platform (`<slug>.starhermit.com`).** `src/platform.js` reads the launch token from the URL
-fragment (`#game_token=`, read once then stripped; query params are local-dev fallbacks only), decodes
-`sub` / `game_scope` from the JWT payload, and sends `Authorization: Bearer` on every call, re-minting
-the token via `POST /api/v1/games/{slug}/launch-token` every 45 min (retry ~60 s on failure). The
-account nickname comes from `GET /api/v1/users/{sub}/profile` — never `/api/v1/me`, never usernames;
-fallback `"Player " + id.slice(0,8)` — and is shown with a sync chip on the title screen. Progress and
-local boards mirror to the platform cloud slot (`GET`/`PUT /api/v1/me/cloud-saves/{slug}` as a stored
-zip + base64; remote wins on conflict; ~2 s debounce + `pagehide`/`visibilitychange` flush;
-localStorage stays the offline cache). Platform leaderboards are read-only: `GET /api/v1/games/{slug}`
-yields the `leaderboardId`, entries come from
-`GET /api/v1/leaderboards/{leaderboardId}/entries` (userIds resolved to nicknames via the profile
-helper), and the top of the board renders on the shift briefing. Clients never submit scores on-platform;
-a ranked run records to the local board instead. Achievements stay local (part of the cloud-saved doc).
-There is no presence, telemetry, or per-game daily endpoint on the platform surface — heartbeat exists
-only against the own dev server, and the old analytics beacon was removed.
+**Hosted platform (`<slug>.starhermit.com`).** All platform calls go through the shared client
+`starhermit-sdk.js` (loaded before the game modules) via `src/platform.js`; hosted mode means signed in.
 
-Everything degrades: `platform.init()` probes time out fast, and any failure falls back to local play
-against localStorage with no console noise.
+- **Launch token + renewal.** `StarHermit.init()` reads `#game_token=` (library launch) or
+  `#access_token=` (sign-in return) once, strips it and renews it before expiry. If renewal is refused
+  the game toasts "signed out", hides the invite button and the player chip, and keeps playing locally.
+- **Sign-in.** On `<id>.starhermit.com` without a token the title shows **Sign in with StarHermit**;
+  hidden when signed in and when running locally.
+- **Identity.** Profile `nickname` (never `/api/v1/me`, never usernames; fallback `Player <id prefix>`)
+  shown with a sync chip on the title screen.
+- **Cloud save.** Progress and local boards mirror to the `game:<slug>` cloud-save slot (remote wins on
+  load; a missing slot is seeded from the local cache; ~2 s debounce + keepalive flush on
+  `pagehide`/hidden tab; localStorage stays the offline cache).
+- **Settings KV.** Every preference (volumes, theme, camera, colour-blind mode, motion, contrast, text,
+  haptics, graphics, tutorial flags …) is patched to the per-player settings store when it changes
+  (changed keys only); at boot the stored values override the local ones.
+- **Controls.** Keyboard input is routed by `event.code` through `StarHermit.loadBindings()` (defaults =
+  the manifest `control.*` lines: back, pause, hint, undo, camera, prev, next); the Help "Controls" card
+  lists the effective keys.
+- **Invite link.** Signed-in players get **Invite a friend** on the title, copying
+  `StarHermit.inviteLink()` with a confirmation toast.
+- **Leaderboard (read-only).** The shift briefing shows the game's first platform board when one exists
+  (`StarHermit.leaderboard()`, names via profiles); otherwise local records. Clients never submit scores
+  on-platform; a ranked run records to the local board instead. Achievements stay local (part of the
+  cloud-saved doc).
+
+Account strings are localized in the nine locales (`src/sh-strings.js`). Signed in, the only extra call
+is `GET /api/v1/time` (round-trip-adjusted offset for the UTC daily boundary). Not used: platform sessions,
+matchmaking, friend-picker invites, chat and replays — Market Manager is single-player and `server.js` is
+a standalone Node host, not a platform game script, so it reports no scores, achievements or replays.
+
+Everything degrades: any failure falls back to local play against localStorage with no console noise.
 
 ## 13. Technical architecture
 
@@ -469,7 +481,7 @@ or non-allowlisted console error or warning.
 ## 14. Testing and acceptance criteria
 
 `npm test` runs `tests/rules.test.mjs` (75 assertions) and `tests/gfx.test.mjs` (GPU detection, preset
-resolution, overrides, render-scale clamping, preset-clears-overrides, locale coverage of the Graphics panel).
+resolution, overrides, render-scale clamping, preset-clears-overrides, locale coverage of the Graphics panel), and `tests/platform.test.mjs` (the StarHermit adapter over the real SDK).
 The rules suite covers: map parsing and construction errors, serialization
 round-trips and version rejection, every `validateCommand` reason, restock/upgrade/unlock/hire economics, the
 customer lifecycle (browse, take, queue, serve, angry, empty), staff automation cadence, all three terminal

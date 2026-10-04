@@ -33,10 +33,10 @@ export function humanizeReason(reason) {
 const MODES = [
   { id: 'learn', name: 'Learn', blurb: 'Four short lessons that teach one rule at a time by doing.', duration: '2–4 min each', standing: 'casual', standingText: 'Practice · not ranked' },
   { id: 'journey', name: 'Journey', blurb: 'Forty authored stages, from first shift to market legend.', duration: '3–8 min each', standing: 'casual', standingText: 'Progress saved locally' },
-  { id: 'daily', name: 'Daily', blurb: 'One shared market per UTC day. Same seed for everyone.', duration: '~4 min', standing: 'ranked', standingText: 'Ranked when online' },
+  { id: 'daily', name: 'Daily', blurb: 'One shared market per UTC day. Same seed for everyone.', duration: '~4 min', standing: 'ranked', standingText: 'Local board · personal best' },
   { id: 'practice', name: 'Practice', blurb: 'Pick a pace and play freely. Undo is allowed here.', duration: '3–5 min', standing: 'casual', standingText: 'Not ranked · undo on' },
   { id: 'challenge', name: 'Challenge', blurb: 'Five constrained stages: move limits, speed, altered floors.', duration: '2–6 min each', standing: 'casual', standingText: 'Progress saved locally' },
-  { id: 'score', name: 'Score chase', blurb: 'Play any beaten stage for the leaderboard. Replays are verified.', duration: '3–8 min', standing: 'ranked', standingText: 'Ranked when online' },
+  { id: 'score', name: 'Score chase', blurb: 'Play any beaten stage for a higher score on the board.', duration: '3–8 min', standing: 'ranked', standingText: 'Local board · personal best' },
 ];
 
 const HELP_RULES = [
@@ -220,7 +220,7 @@ export function createUI({ callbacks }) {
     return parts.length ? 'Goals: ' + parts.join(', ') : 'Open play';
   }
 
-  function showSetup(mode, config, ranked, hosted = false) {
+  function showSetup(mode, config, hosted = false) {
     showScreen('setup');
     els.setupHeading.textContent = config.name;
     els.setupSummary.textContent = goalSummary(config.goals) + ' · ' + modeLabel(mode);
@@ -228,9 +228,7 @@ export function createUI({ callbacks }) {
     els.setupGoals.replaceChildren(...goalLinesFromConfig(config).map((t) => el('li', {}, t)));
     els.setupDuration.textContent = 'Up to ' + ticksToClock(config.maxTicks, 500);
     els.setupRules.textContent = rulesSummary(config);
-    els.setupRanked.textContent = ranked
-      ? 'Ranked — replay submitted for verification'
-      : hosted
+    els.setupRanked.textContent = hosted
         ? 'Casual — progress syncs to your account; the platform leaderboard is read-only'
         : 'Casual — result stays on this device';
     // Refilled by showSetupBoard once the board read resolves.
@@ -269,6 +267,21 @@ export function createUI({ callbacks }) {
     }[status];
     els.playerChip.hidden = false;
     els.playerChip.textContent = `Playing as ${nickname || 'Player'}${syncText ? ' · ' + syncText : ''}`;
+  }
+
+  // StarHermit account buttons on the title screen.
+  function wireAccount({ labels, onSignIn, onInvite }) {
+    const signIn = $('btn-signin');
+    const invite = $('btn-invite');
+    signIn.textContent = labels.signIn;
+    invite.textContent = labels.invite;
+    signIn.addEventListener('click', onSignIn);
+    invite.addEventListener('click', onInvite);
+  }
+  function setAccountButtons({ signIn, invite }) {
+    $('btn-signin').hidden = !signIn;
+    $('btn-invite').hidden = !invite;
+    $('account-row').hidden = !signIn && !invite;
   }
 
   function goalLinesFromConfig(config) {
@@ -483,8 +496,7 @@ export function createUI({ callbacks }) {
     if (best != null || submitted) {
       els.resultsBest.hidden = false;
       const tag = submitted === 'local' ? ' · saved to the local board' + rankText
-        : submitted === false ? ' · played offline, not submitted'
-        : submitted ? ' · submitted' + rankText : '';
+        : submitted === false ? ' · not recorded' : '';
       els.resultsBest.textContent = (best != null ? `Best on this stage: ${best}` : 'Result recorded') + tag;
     } else {
       els.resultsBest.hidden = true;
@@ -751,6 +763,8 @@ export function createUI({ callbacks }) {
     showSetup,
     showSetupBoard,
     setPlayerInfo,
+    wireAccount,
+    setAccountButtons,
     updateHUD,
     showContextPanel,
     hideContextPanel,

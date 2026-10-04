@@ -20,22 +20,39 @@ import {
   detectPreset, resolve as resolveGraphics, describe as describeGraphics, legacyPreset, gpuName,
 } from './gfx.js';
 import { createGraphicsPanel } from './gfx-panel.js';
+import { shStrings } from './sh-strings.js';
 
-const CONTROL_MAP = [
+// Keyboard actions → default KeyboardEvent.code values; mirrors the control.*
+// lines in starhermit.txt. The player's StarHermit bindings replace them.
+const DEFAULT_BINDINGS = {
+  back: ['Escape'], pause: ['KeyP'], hint: ['KeyH'], undo: ['KeyU'], camera: ['KeyR'],
+  prev: ['ArrowUp', 'ArrowLeft', 'KeyW', 'KeyA'], next: ['ArrowDown', 'ArrowRight', 'KeyS', 'KeyD'],
+};
+function keyLabel(code) {
+  const named = { ArrowUp: '↑', ArrowDown: '↓', ArrowLeft: '←', ArrowRight: '→', Escape: 'Esc' };
+  if (named[code]) return named[code];
+  if (/^Key[A-Z]$/.test(code)) return code.slice(3);
+  if (/^Digit\d$/.test(code)) return code.slice(5);
+  return code || '—';
+}
+
+// Help "Controls" card; keyboard rows show the effective bindings.
+const controlMap = (b) => [
   { keys: 'Tap / click a shelf', action: 'restock it (or open its actions)' },
   { keys: 'Tap / click a checkout', action: 'serve the next guest' },
-  { keys: 'Arrow keys or WASD', action: 'move focus between market actions' },
+  { keys: [...b.prev, ...b.next].map(keyLabel).join(' '), action: 'move focus between market actions' },
   { keys: 'Enter / Space', action: 'confirm the focused action' },
-  { keys: 'H', action: 'hint' },
-  { keys: 'U', action: 'undo (Practice only)' },
-  { keys: 'R', action: 'reset camera' },
-  { keys: 'P or Esc', action: 'pause / close panel' },
+  { keys: b.hint.map(keyLabel).join(' / '), action: 'hint' },
+  { keys: b.undo.map(keyLabel).join(' / '), action: 'undo (Practice only)' },
+  { keys: b.camera.map(keyLabel).join(' / '), action: 'reset camera' },
+  { keys: [...b.pause, ...b.back].map(keyLabel).join(' or '), action: 'pause / close panel' },
   { keys: 'Gamepad d-pad / left stick', action: 'move focus' },
   { keys: 'Gamepad A', action: 'confirm' },
   { keys: 'Gamepad B', action: 'cancel / close' },
   { keys: 'Gamepad Start', action: 'pause' },
   { keys: 'Gamepad Y', action: 'hint' },
 ];
+const shT = shStrings(typeof navigator !== 'undefined' ? (navigator.languages || [navigator.language]) : []);
 
 const REPEAT_DELAY_MS = 220;
 const GAMEPAD_DEADZONE = 0.25;
@@ -48,6 +65,16 @@ function boot() {
   let progress = loadProgress();
   const audio = createAudio(settings);
   const platform = createPlatform();
+  let bindings = DEFAULT_BINDINGS;
+  let codeToAction = new Map();
+  const setBindings = (b) => {
+    bindings = b;
+    codeToAction = new Map();
+    for (const [action, codes] of Object.entries(b)) for (const c of codes) codeToAction.set(c, action);
+  };
+  setBindings(DEFAULT_BINDINGS);
+  // Local copy + per-player StarHermit settings KV (changed keys only).
+  const persistSettings = () => { saveSettings(settings); platform.pushSettings(settings); };
 
   let renderer = null;
   let rendererPromise = null;
@@ -113,6 +140,24 @@ function boot() {
   platform.onSync = (status) => {
     ui.setPlayerInfo({ nickname: platform.nickname, status, hosted: platform.hosted });
   };
+  // Sign-in (platform host, no token) / invite (signed in); hidden locally.
+  const refreshAccount = () => ui.setAccountButtons({ signIn: platform.canSignIn(), invite: platform.hosted });
+  ui.wireAccount({
+    labels: { signIn: shT.signIn, invite: shT.invite },
+    onSignIn: () => platform.signIn(),
+    onInvite: async () => {
+      const link = platform.inviteLink();
+      if (!link) return;
+      try { await navigator.clipboard.writeText(link); ui.toast(shT.copied, 'good'); }
+      catch { ui.toast(shT.copyFailed, 'bad'); }
+    },
+  });
+  refreshAccount();
+  platform.onAuth((a) => {
+    refreshAccount();
+    ui.setPlayerInfo({ nickname: platform.nickname, status: platform.syncStatus, hosted: platform.hosted });
+    if (!a.signedIn) ui.toast(shT.signedOut, 'info'); // keep playing locally
+  });
 
   // First gesture unlocks WebAudio.
   const unlockAudio = () => {
@@ -134,13 +179,25 @@ function boot() {
   refreshDailyInfo();
   setInterval(() => { if (appScreen === 'title') refreshDailyInfo(); }, 30000);
 
-  // Probe the platform/backend without blocking the title screen. A remote
+  // Start the platform session without blocking the title screen. A remote
   // cloud save wins over the local cache, so progress reloads when one lands.
-  platform.init().then((info) => {
+  platform.init().then(async (info) => {
     if (info && info.remoteLoaded) progress = loadProgress();
     if (info && info.hosted) {
       ui.setPlayerInfo({ nickname: platform.nickname, status: platform.syncStatus, hosted: true });
+      const [kv, b] = await Promise.all([platform.loadSettings(), platform.loadBindings(DEFAULT_BINDINGS)]);
+      setBindings(b);
+      // Settings KV wins over the local copy, key by key.
+      const patch = {};
+      for (const k of Object.keys(settings)) if (kv[k] !== undefined && kv[k] !== null) patch[k] = kv[k];
+      if (Object.keys(patch).length) {
+        applySettingsPatch(patch);
+        if (patch.graphics) applyGraphics(settings.graphics);
+        ui.applySettingsClasses(settings);
+      }
+      platform.primeSettings(settings);
     }
+    if (appScreen === 'title') ui.showTitle(progress);
     refreshDailyInfo();
   }).catch(() => {});
 
@@ -256,13 +313,11 @@ function boot() {
     if (!config) throw new Error('unknown stage ' + id);
     pending = { mode, id, config, fromStageSelect, stageArgs: pending?.stageArgs };
     appScreen = 'setup';
-    const ranked = (mode === 'daily' || mode === 'score') && platform.ranked;
-    ui.showSetup(mode, config, ranked, platform.hosted);
+    ui.showSetup(mode, config, platform.hosted);
     if (mode === 'daily' || mode === 'score') {
-      // Leaderboard preview: read-only on-platform, own-server board in dev,
-      // local records offline. Skipped silently when nothing can answer.
+      // Leaderboard preview: read-only on-platform, local records otherwise.
       const board = config.dailyDate ? 'daily' : 'global';
-      platform.getLeaderboard({ board, date: config.dailyDate || null, configId: mode === 'score' ? config.id : null })
+      platform.getLeaderboard({ board, date: config.dailyDate || null })
         .then((entries) => {
           if (pending && pending.config === config && appScreen === 'setup') {
             ui.showSetupBoard(entries, platform.hosted ? 'Platform leaderboard — read-only' : 'Top shifts');
@@ -297,7 +352,7 @@ function boot() {
   function applyGraphics(saved) {
     settings.graphics = { ...(saved || {}) };
     delete settings.quality; // superseded by settings.graphics.preset
-    saveSettings(settings);
+    persistSettings();
     const r = resolveGraphics(settings.graphics, detectedPreset);
     const root = document.documentElement;
     root.dataset.gfxPreset = r.preset;
@@ -515,7 +570,6 @@ function boot() {
       else if (ev.kind === 'left-angry') ui.toast('A guest left angry', 'bad');
       else if (ev.kind === 'left-empty') ui.toast('A guest found empty shelves', 'info');
     }
-    platform.heartbeat();
   }
 
   function musicIntensity() {
@@ -683,7 +737,7 @@ function boot() {
     if (round.session.state.phase !== 'won') return;
     if (!settings.tutorialsDone.includes(round.id)) {
       settings.tutorialsDone.push(round.id);
-      saveSettings(settings);
+      persistSettings();
     }
     if (!progress.tutorialsDone.includes(round.id)) {
       progress.tutorialsDone.push(round.id);
@@ -708,12 +762,11 @@ function boot() {
     let submitted = null;
     let rank = null;
     if (mode === 'daily' || mode === 'score') {
-      // Own-server backend: replay-verified ranked submit. Hosted platform:
-      // leaderboards are read-only, so the run records to the local board.
+      // Leaderboards are read-only, so the run records to the local board.
       const res = await platform.submitScore(session.replayEnvelope());
-      submitted = res && res.ok ? (res.local ? 'local' : true) : false;
+      submitted = res && res.ok ? 'local' : false;
       if (res && res.ok && typeof res.rank === 'number') rank = res.rank;
-      if (res && res.ok && res.local) platform.queueCloudSave();
+      if (res && res.ok) platform.queueCloudSave();
     }
 
     const best = mode === 'journey' || mode === 'score'
@@ -768,7 +821,7 @@ function boot() {
     overlayReturn = appScreen;
     if (name === 'help') {
       appScreen = 'help';
-      ui.showHelp(CONTROL_MAP);
+      ui.showHelp(controlMap(bindings));
     } else {
       appScreen = 'settings';
       ui.showSettings(settings);
@@ -790,7 +843,7 @@ function boot() {
     } else if (dest === 'title') goTitle();
     else if (dest === 'mode-select') onModeChosen(null);
     else if (dest === 'stage-select' && pending?.stageArgs) ui.showStageSelect(...pending.stageArgs);
-    else if (dest === 'setup' && pending) ui.showSetup(pending.mode, pending.config, false, platform.hosted);
+    else if (dest === 'setup' && pending) ui.showSetup(pending.mode, pending.config, platform.hosted);
     else if (dest === 'results' && lastResults) ui.showResults(lastResults);
     else goTitle();
   }
@@ -798,7 +851,7 @@ function boot() {
   // ------------------------------------------------------------ settings
   function applySettingsPatch(patch) {
     Object.assign(settings, patch);
-    saveSettings(settings);
+    persistSettings();
     ui.applySettingsClasses(settings);
     audio.setVolumes(settings);
     if (renderer) {
@@ -812,7 +865,7 @@ function boot() {
 
   function onReplayTutorials() {
     settings.tutorialsDone = [];
-    saveSettings(settings);
+    persistSettings();
     progress.tutorialsDone = [];
     saveProgress(progress);
     platform.queueCloudSave();
@@ -834,7 +887,8 @@ function boot() {
     const tag = document.activeElement?.tagName;
     const typing = tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA';
 
-    if (e.key === 'Escape') {
+    const act = codeToAction.get(e.code);
+    if (act === 'back') {
       if (appScreen === 'help' || appScreen === 'settings') closeOverlay();
       else if (appScreen === 'game' && active && !paused) pauseGame(true);
       else if (appScreen === 'pause') resumeGame();
@@ -842,17 +896,16 @@ function boot() {
     }
     if (typing) return;
 
-    const k = e.key.toLowerCase();
     if (appScreen === 'game' && active && !paused) {
-      if (k === 'p') { pauseGame(true); e.preventDefault(); }
-      else if (k === 'h') { showHint(); e.preventDefault(); }
-      else if (k === 'u') { doUndo(); e.preventDefault(); }
-      else if (k === 'r') { if (renderer) renderer.resetCamera(); e.preventDefault(); }
-      else if (['arrowup', 'arrowdown', 'arrowleft', 'arrowright', 'w', 'a', 's', 'd'].includes(k)) {
-        moveMirrorFocus(k === 'arrowup' || k === 'arrowleft' || k === 'a' || k === 'w' ? -1 : 1);
+      if (act === 'pause') { pauseGame(true); e.preventDefault(); }
+      else if (act === 'hint') { showHint(); e.preventDefault(); }
+      else if (act === 'undo') { doUndo(); e.preventDefault(); }
+      else if (act === 'camera') { if (renderer) renderer.resetCamera(); e.preventDefault(); }
+      else if (act === 'prev' || act === 'next') {
+        moveMirrorFocus(act === 'prev' ? -1 : 1);
         e.preventDefault();
       }
-    } else if (appScreen === 'pause' && k === 'p') {
+    } else if (appScreen === 'pause' && act === 'pause') {
       resumeGame();
       e.preventDefault();
     }

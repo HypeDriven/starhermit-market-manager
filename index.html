@@ -12,6 +12,7 @@
     { "imports": { "three": "./lib/three.module.min.js", "three/addons/": "./lib/addons/" } }
   </script>
 <script src="browser-guard.js"></script>
+<script src="starhermit-sdk.js"></script>
 </head>
 <body>
   <header class="app-header">
@@ -42,6 +43,10 @@
             <div class="row">
               <button id="btn-help-title" class="btn btn-ghost" type="button">How to play</button>
               <button id="btn-settings-title" class="btn btn-ghost" type="button">Settings</button>
+            </div>
+            <div id="account-row" class="row" hidden>
+              <button id="btn-signin" class="btn btn-ghost" type="button" hidden>Sign in with StarHermit</button>
+              <button id="btn-invite" class="btn btn-ghost" type="button" hidden>Invite a friend</button>
             </div>
           </div>
         </div>

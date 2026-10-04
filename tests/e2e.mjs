@@ -5,8 +5,8 @@
  * Chrome). Self-contained: starts its own static file server on an ephemeral
  * port and tears everything down at the end. The repo's server.js is the
  * StarHermit authoritative game script, so it is intentionally NOT used here;
- * the game is fully playable offline (src/platform.js falls back to local
- * behavior when /api/v1/* is absent — the probe 404 is expected and silent).
+ * the game is fully playable offline and, with no launch token, makes zero
+ * same-origin /api or /ws requests (asserted per pass).
  *
  * Flow per pass (desktop 1280x800, then a fresh mobile 390x844 + touch):
  *   load → title → help open/close → settings open/close → Play →
@@ -142,13 +142,15 @@ async function runPass(browser, { name, viewport, hasTouch }) {
   const context = await browser.newContext({ viewport, hasTouch });
   const page = await context.newPage();
   const errors = [];
+  page.on('request', (r) => {
+    const u = new URL(r.url());
+    if (u.port === String(runPass.port) && /^\/(api|ws)(\/|$)/.test(u.pathname)) errors.push(`own-server request: ${r.method()} ${u.pathname}`);
+  });
+  page.on('websocket', (ws) => errors.push(`websocket opened: ${ws.url()}`));
   page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
   page.on('console', (m) => {
     if ((m.type() !== 'error' && m.type() !== 'warning') || browserNoise.test(m.text())) return;
     const loc = m.location()?.url || '';
-    // Benign: the game's one backend probe (/api/v1/time) 404s on this static
-    // server; src/platform.js is designed to fall back to offline play.
-    if (/Failed to load resource/.test(m.text()) && loc.includes('/api/v1/')) return;
     errors.push(`console: ${m.text()} [${loc}]`);
   });
 
