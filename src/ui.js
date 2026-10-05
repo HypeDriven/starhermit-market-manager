@@ -98,7 +98,7 @@ export function createUI({ callbacks }) {
   let focusMemory = new Map();
 
   // ---------------------------------------------------------------- helpers
-  function el(tag, attrs = {}, text) {
+  function el(tag, attrs = {}, ...children) {
     const node = document.createElement(tag);
     for (const [k, v] of Object.entries(attrs)) {
       if (k === 'class') node.className = v;
@@ -106,7 +106,8 @@ export function createUI({ callbacks }) {
       else if (k in node && k !== 'list' && k !== 'type' && k !== 'for') node[k] = v;
       else node.setAttribute(k, v);
     }
-    if (text != null) node.textContent = text;
+    // Children may be text or nodes (e.g. an actions row of command buttons).
+    node.append(...children.filter((c) => c != null));
     return node;
   }
 

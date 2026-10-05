@@ -34,6 +34,7 @@ short, and spend the takings on staff, upgrades and new departments before closi
 | `lib/addons/` | three r160 addons (post-processing passes, their shaders, `RoomEnvironment`), vendored from the same 0.160.1 release as `lib/three.module.min.js`; imported via the `three/addons/` import-map entry. |
 | `src/audio.js` | WebAudio: authored `.opus` one-shots with synthesised fallbacks, ambience bed, two-layer adaptive music. |
 | `starhermit-sdk.js` | Shared StarHermit client (unmodified copy). |
+| `ui-scale.js` | Shared large-screen UI scale helper (unmodified copy); sets `--ui-scale` on `<html>`. |
 | `src/platform.js` | Adapter over the SDK: identity, sign-in/invite, cloud saves, settings KV, key bindings, read-only platform leaderboard; local boards. |
 | `src/sh-strings.js` | Account strings in the nine locales. |
 | `src/rng.js` | mulberry32 seeded RNG, stable stringify, FNV-1a state hashing. |
@@ -264,7 +265,11 @@ from the title and from pause.
 as right-side rails (mirrored by the left-handed setting). Compact (<1024 px): the same drawers dock to the
 bottom edge. Portrait phone (≤700 px): safe-area padded status bar, the canvas takes the remaining height, the
 HUD action row sits in the thumb zone with 44 px targets, drawers become bottom sheets. Landscape phone
-(≤500 px tall): the HUD compresses to a single rail so the floor keeps its height.
+(≤500 px tall): the HUD compresses to a single rail so the floor keeps its height. Large screens (above
+1600×1000): `ui-scale.js` sets `--ui-scale = min(w/1600, h/1000)` (max 2.5) and the header, footer, `#ui-overlay`
+(every screen, HUD, drawer and the mirror), countdown, toasts and frame-rate readout are CSS-zoomed by it, with
+vw/vh lengths inside them divided by the scale; the full-bleed 3D canvas is not zoomed and keeps framing the room
+between the (now larger) HUD bands.
 
 **Never cut off:** the objective line, the four HUD stats, the pause button, the drawer's primary action row,
 and the results total. All bottom-anchored elements add `env(safe-area-inset-bottom)`; the header adds

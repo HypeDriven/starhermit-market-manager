@@ -91,6 +91,15 @@ body { height: 100dvh; overflow: hidden; display: flex; flex-direction: column; 
 /* ---------------------------------------------------------------- layout */
 #app { position: relative; flex: 1; display: flex; min-height: 0; }
 
+/* Large screens: ui-scale.js sets --ui-scale (1 up to 1600×1000). Each DOM UI
+   layer is zoomed once; the full-bleed 3D canvas (#scene-host) is not. */
+.app-header, .app-footer, #ui-overlay, #countdown, #toasts, .fps-meter { zoom: var(--ui-scale, 1); }
+
+/* Author display rules (.chip, .btn…) must not resurrect hidden elements. */
+[hidden] { display: none !important; }
+/* Headings take programmatic focus on screen change; they are not controls. */
+h1[tabindex="-1"]:focus, h2[tabindex="-1"]:focus { outline: none; }
+
 #scene-host {
   position: absolute;
   inset: 0;
@@ -326,7 +335,7 @@ html.high-contrast .results-banner { display: none; }
   color: var(--accent-ink);
   border-radius: 12px;
   padding: 10px 16px;
-  max-width: min(60ch, calc(100vw - 24px));
+  max-width: min(60ch, calc(calc(100vw / var(--ui-scale, 1)) - 24px));
   margin: 4px auto 0 !important; /* directly under the HUD, away from the bottom summary */
   font-weight: 600;
 }
@@ -340,8 +349,8 @@ html.high-contrast .results-banner { display: none; }
   border-radius: var(--radius);
   box-shadow: var(--shadow);
   padding: 16px;
-  width: min(320px, calc(100vw - 24px));
-  max-height: calc(100dvh - 140px);
+  width: min(320px, calc(calc(100vw / var(--ui-scale, 1)) - 24px));
+  max-height: calc(calc(100dvh / var(--ui-scale, 1)) - 140px);
   overflow-y: auto;
   z-index: 15;
 }
@@ -360,7 +369,7 @@ html.left-handed .staff-panel { inset-inline-start: auto; inset-inline-end: 12px
   position: absolute;
   inset-inline-start: 12px;
   bottom: calc(env(safe-area-inset-bottom, 0px) + 12px);
-  max-width: min(420px, calc(100vw - 24px));
+  max-width: min(420px, calc(calc(100vw / var(--ui-scale, 1)) - 24px));
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: 12px;
@@ -461,7 +470,7 @@ html:not(.force-mirror) .board-mirror { /* compact summary only; full list is vi
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: clamp(4rem, 18vw, 9rem);
+  font-size: clamp(4rem, calc(18vw / var(--ui-scale, 1)), 9rem);
   font-weight: 800;
   color: var(--accent-deep);
   text-shadow: 0 4px 0 var(--bg-soft);
@@ -488,7 +497,7 @@ html:not(.force-mirror) .board-mirror { /* compact summary only; full list is vi
   padding: 8px 18px;
   font-size: 0.9rem;
   animation: toast-in 0.18s ease;
-  max-width: 80vw;
+  max-width: calc(80vw / var(--ui-scale, 1));
 }
 .toast.good { background: var(--good); color: #fff; }
 .toast.bad { background: var(--bad); color: #fff; }
@@ -510,7 +519,7 @@ html:not(.force-mirror) .board-mirror { /* compact summary only; full list is vi
 /* Keep the mirror's buttons reachable: undo clipping when focused within. */
 #mirror-list:focus-within {
   position: absolute !important;
-  width: min(420px, calc(100vw - 24px)) !important;
+  width: min(420px, calc(calc(100vw / var(--ui-scale, 1)) - 24px)) !important;
   height: auto !important;
   clip: auto !important;
   clip-path: none !important;
@@ -522,14 +531,14 @@ html:not(.force-mirror) .board-mirror { /* compact summary only; full list is vi
   border: 1px solid var(--line);
   border-radius: 12px;
   padding: 12px;
-  max-height: 60dvh;
+  max-height: calc(60dvh / var(--ui-scale, 1));
   z-index: 18;
 }
 /* No-WebGL compat mode: the action list is the only play surface, so it
    must stay visible, not just while focused. */
 html.force-mirror #mirror-list {
   position: absolute !important;
-  width: min(420px, calc(100vw - 24px)) !important;
+  width: min(420px, calc(calc(100vw / var(--ui-scale, 1)) - 24px)) !important;
   height: auto !important;
   margin: 0 !important;
   clip: auto !important;
@@ -542,7 +551,7 @@ html.force-mirror #mirror-list {
   border: 1px solid var(--line);
   border-radius: 12px;
   padding: 12px;
-  max-height: 55dvh;
+  max-height: calc(55dvh / var(--ui-scale, 1));
   z-index: 18;
 }
 
@@ -577,7 +586,7 @@ html.force-mirror #mirror-list {
   .hud-top { padding-block: 4px; }
   .hud-stats .stat { padding: 4px 8px; }
   .stat-label { display: none; }
-  .drawer { top: 56px; max-height: calc(100dvh - 80px); }
+  .drawer { top: 56px; max-height: calc(calc(100dvh / var(--ui-scale, 1)) - 80px); }
 }
 
 /* ---------------------------------------------------------------- motion */
