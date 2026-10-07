@@ -73,15 +73,22 @@ export function createPlatform({ sh: shDep } = {}) {
     };
   }
 
+  // Held during the start-up load: a doc queued then would still be PUT after
+  // the remote one is adopted, over the newer cloud save.
+  let cloudLoading = false;
+  let cloudHeld = false;
   function queueCloudSave() {
     if (!sh.signedIn) return; // offline: localStorage is the only store
+    if (cloudLoading) { cloudHeld = true; return; }
     setSync('saving');
     sh.saveJSON(cloudDoc(), CLOUD_DEBOUNCE_MS);
   }
 
   async function loadCloudSave() {
     if (!sh.signedIn) return false;
-    const doc = await sh.loadJSON();
+    cloudLoading = true;
+    const doc = await sh.loadJSON().finally(() => { cloudLoading = false; });
+    cloudHeld = false; // superseded: adopted remote, or the seed push below
     if (!doc || typeof doc !== 'object') {
       queueCloudSave(); // no save yet: seed the slot from the local cache
       return false;
@@ -133,6 +140,7 @@ export function createPlatform({ sh: shDep } = {}) {
 
     // Platform clock only with a launch token; standalone uses the local clock.
     if (hosted) {
+      cloudLoading = true; // the time sync below already counts as the load window
       try {
         const sendAt = Date.now();
         const data = await sh.api('/api/v1/time');

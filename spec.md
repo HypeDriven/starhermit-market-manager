@@ -419,7 +419,8 @@ score-chase run records to the local board. `server.js` is only a static host fo
 - **Identity.** Profile `nickname` (never `/api/v1/me`, never usernames; fallback `Player <id prefix>`)
   shown with a sync chip on the title screen.
 - **Cloud save.** Progress and local boards mirror to the `game:<slug>` cloud-save slot (remote wins on
-  load; a missing slot is seeded from the local cache; ~2 s debounce + keepalive flush on
+  load; a missing slot is seeded from the local cache; nothing is pushed until that load settles, so a
+  save made meanwhile never overwrites an adopted remote doc; ~2 s debounce + keepalive flush on
   `pagehide`/hidden tab; localStorage stays the offline cache).
 - **Settings KV.** Every preference (volumes, theme, camera, colour-blind mode, motion, contrast, text,
   haptics, graphics, tutorial flags …) is patched to the per-player settings store when it changes
