@@ -81,7 +81,7 @@ export function createUI({ callbacks }) {
     pauseAwayNote: $('pause-away-note'),
     resultsHeading: $('results-heading'), resultsReason: $('results-reason'),
     resultsTable: $('results-table'), resultsTotal: $('results-total'),
-    resultsTiebreak: $('results-tiebreak'), resultsBest: $('results-best'),
+    resultsTiebreak: $('results-tiebreak'), resultsBest: $('results-best'), resultsLb: $('results-lb'),
     resultsAchievements: $('results-achievements'), btnNext: $('btn-next'),
     helpCards: $('help-cards'),
     settingsForm: $('settings-form'),
@@ -171,9 +171,9 @@ export function createUI({ callbacks }) {
     els.modeCards.replaceChildren(...MODES.map((m) => {
       const card = el('button', { class: 'card', type: 'button' });
       const standingText = hosted && (m.id === 'journey' || m.id === 'challenge')
-        ? 'Progress synced to your account'
+        ? 'Progress synced · posts to the platform leaderboard'
         : hosted && (m.id === 'daily' || m.id === 'score')
-          ? 'Personal best · platform board read-only'
+          ? 'Personal best · posts to the platform leaderboard'
           : m.standingText;
       card.append(
         el('h3', {}, m.name),
@@ -230,7 +230,9 @@ export function createUI({ callbacks }) {
     els.setupDuration.textContent = 'Up to ' + ticksToClock(config.maxTicks, 500);
     els.setupRules.textContent = rulesSummary(config);
     els.setupRanked.textContent = hosted
-        ? 'Casual — progress syncs to your account; the platform leaderboard is read-only'
+        ? (mode === 'learn' || mode === 'practice'
+          ? 'Casual — progress syncs to your account'
+          : 'Ranked — your total posts to the platform leaderboard')
         : 'Casual — result stays on this device';
     // Refilled by showSetupBoard once the board read resolves.
     els.setupBoardLabel.hidden = true;
@@ -472,7 +474,7 @@ export function createUI({ callbacks }) {
     'out-of-moves': 'Out of moves — the market could not keep up.',
   };
 
-  function showResults({ session, config, score, newly, best, next, submitted, rank }) {
+  function showResults({ session, config, score, newly, best, next, submitted, rank, lbLine }) {
     showScreen('results');
     const won = session.state.phase === 'won';
     els.resultsHeading.textContent = won ? 'Shift complete' : 'Shift over';
@@ -502,6 +504,7 @@ export function createUI({ callbacks }) {
     } else {
       els.resultsBest.hidden = true;
     }
+    setLeaderboardLine(lbLine || null);
     els.resultsAchievements.replaceChildren(...(newly || []).filter(Boolean).map((a) => {
       const li = el('li');
       li.append(el('strong', {}, 'Achievement: ' + a.name + ' — '), a.desc);
@@ -516,6 +519,12 @@ export function createUI({ callbacks }) {
       els.btnNext.onclick = null;
     }
     announce(els.resultsHeading.textContent + '. ' + els.resultsReason.textContent, 'assertive');
+  }
+
+  // Platform leaderboard status on the results screen (hidden when null).
+  function setLeaderboardLine(text) {
+    els.resultsLb.hidden = !text;
+    els.resultsLb.textContent = text || '';
   }
 
   // ---------------------------------------------------------------- help
@@ -774,6 +783,7 @@ export function createUI({ callbacks }) {
     showPause,
     hidePause,
     showResults,
+    setLeaderboardLine,
     showHelp,
     showSettings,
     wireSettings,

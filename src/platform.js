@@ -183,10 +183,23 @@ export function createPlatform({ sh: shDep } = {}) {
     return localEntries(board, date);
   }
 
-  // Leaderboards are read-only on the platform and there is no own server,
-  // so every run records to the local board (cloud-saved when signed in).
+  // Every ranked run records to the local board (cloud-saved when signed in).
   async function submitScore(envelope) {
     return submitScoreLocal(envelope);
+  }
+
+  // Signed in: post a finished run's total to the platform high-score board
+  // through the game's score script (score-script.js). Resolves
+  // { posted, rank } — rank on that board, or null. Standalone: no request.
+  async function submitPlatformScore(total) {
+    if (!sh || !sh.signedIn) return { posted: false, rank: null };
+    const keys = await sh.submitScores({ 'high-score': total });
+    if (!keys.includes('high-score')) return { posted: false, rank: null };
+    try {
+      const r = await sh.leaderboard('high-score', { pageSize: 100 });
+      const me = ((r && r.items) || []).find((i) => i.userId === sh.userId);
+      return { posted: true, rank: me ? me.rank : null };
+    } catch { return { posted: true, rank: null }; }
   }
 
   // ------------------------------------------------------ local fallback
@@ -237,6 +250,7 @@ export function createPlatform({ sh: shDep } = {}) {
     serverTimeOffset,
     serverNow,
     submitScore,
+    submitPlatformScore,
     getLeaderboard,
     queueCloudSave,
     loadSettings,

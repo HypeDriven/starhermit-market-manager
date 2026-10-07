@@ -315,12 +315,12 @@ function boot() {
     appScreen = 'setup';
     ui.showSetup(mode, config, platform.hosted);
     if (mode === 'daily' || mode === 'score') {
-      // Leaderboard preview: read-only on-platform, local records otherwise.
+      // Leaderboard preview: the platform board signed in, local records otherwise.
       const board = config.dailyDate ? 'daily' : 'global';
       platform.getLeaderboard({ board, date: config.dailyDate || null })
         .then((entries) => {
           if (pending && pending.config === config && appScreen === 'setup') {
-            ui.showSetupBoard(entries, platform.hosted ? 'Platform leaderboard — read-only' : 'Top shifts');
+            ui.showSetupBoard(entries, platform.hosted ? 'Platform leaderboard' : 'Top shifts');
           }
         })
         .catch(() => {});
@@ -762,7 +762,7 @@ function boot() {
     let submitted = null;
     let rank = null;
     if (mode === 'daily' || mode === 'score') {
-      // Leaderboards are read-only, so the run records to the local board.
+      // The run also records to the local board (personal best).
       const res = await platform.submitScore(session.replayEnvelope());
       submitted = res && res.ok ? 'local' : false;
       if (res && res.ok && typeof res.rank === 'number') rank = res.rank;
@@ -780,6 +780,16 @@ function boot() {
     appScreen = 'results';
     buzz(session.state.phase === 'won' ? [40, 60, 40] : 120);
     ui.showResults(lastResults);
+    // Signed in: ranked modes (not Learn / Practice) post to the platform board.
+    if (platform.hosted && mode !== 'learn' && mode !== 'practice') {
+      const shown = lastResults;
+      ui.setLeaderboardLine(shT.lbPosting);
+      platform.submitPlatformScore(score.total).then((r) => {
+        shown.lbLine = !r.posted ? shT.lbNotPosted
+          : r.rank ? shT.lbRank.replace('{rank}', r.rank) : shT.lbPosted;
+        if (lastResults === shown && appScreen === 'results') ui.setLeaderboardLine(shown.lbLine);
+      });
+    }
   }
 
   function nextAction(mode, id, won) {

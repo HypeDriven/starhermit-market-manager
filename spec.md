@@ -35,9 +35,10 @@ short, and spend the takings on staff, upgrades and new departments before closi
 | `src/audio.js` | WebAudio: authored `.opus` one-shots with synthesised fallbacks, ambience bed, two-layer adaptive music. |
 | `starhermit-sdk.js` | Shared StarHermit client (unmodified copy). |
 | `ui-scale.js` | Shared large-screen UI scale helper (unmodified copy); sets `--ui-scale` on `<html>`. |
-| `src/platform.js` | Adapter over the SDK: identity, sign-in/invite, cloud saves, settings KV, key bindings, read-only platform leaderboard; local boards. |
+| `src/platform.js` | Adapter over the SDK: identity, sign-in/invite, cloud saves, settings KV, key bindings, platform leaderboard post and read; local boards. |
 | `src/sh-strings.js` | Account strings in the nine locales. |
 | `src/rng.js` | mulberry32 seeded RNG, stable stringify, FNV-1a state hashing. |
+| `score-script.js` | StarHermit platform script (`server=` in `starhermit.txt`): range-checks a finished run's total and posts it to the `high-score` leaderboard (canonical copy in the games repo's `tools/score-script.js`). |
 | `server.js` | Local static host (its legacy `/api/v1` routes are not called by the client). |
 | `sfx/` | 15 Opus clips plus `manifest.txt` (canonical), `manifest.json` (generator), `manifest.md` (legacy prompt table). |
 | `assets/` | `title-backdrop.webp`, `results-banner.webp`. |
@@ -196,11 +197,11 @@ bounded 50-deep stack of previous states and pops the command off the log so rep
 | Mode | Content | Differs by | Ranked |
 |---|---|---|---|
 | **Learn** | 4 lessons (`t01`–`t04`) | Step-gated banners that require the taught command; verbs disabled until taught; long patience (60) | No |
-| **Journey** | 40 stages `j01`–`j40` | Authored curve; stage N+1 unlocks by beating N; every 4th stage is a `mastery` test | No — progress saved locally, cloud-mirrored when signed in |
-| **Daily** | `dailyConfig(YYYY-MM-DD)` | One seed per UTC day from `hash('market-manager-daily-'+date)`; 2–4 departments, map, money, spawn rate, patience, goal and theme all derived from that seed | Local board (personal best); on-platform the board is read-only |
+| **Journey** | 40 stages `j01`–`j40` | Authored curve; stage N+1 unlocks by beating N; every 4th stage is a `mastery` test | Signed in: posts to the platform board; progress saved locally, cloud-mirrored |
+| **Daily** | `dailyConfig(YYYY-MM-DD)` | One seed per UTC day from `hash('market-manager-daily-'+date)`; 2–4 departments, map, money, spawn rate, patience, goal and theme all derived from that seed | Local board (personal best); signed in, also posts to the platform board |
 | **Practice** | relaxed / standard / intense | Spawn 12/8/5, patience 48/36/28, goal serve 15/22/32, starting money 120/100/90; **undo enabled** | No |
-| **Challenge** | 5 stages `c01`–`c05` | Constraints: 10-move limit; 110-tick speed shift; every shelf starts empty; single checkout at spawn 6; hiring disabled | No — progress saved locally, cloud-mirrored when signed in |
-| **Score chase** | any beaten stage | Same rules, submission on | Local board (personal best); on-platform the board is read-only |
+| **Challenge** | 5 stages `c01`–`c05` | Constraints: 10-move limit; 110-tick speed shift; every shelf starts empty; single checkout at spawn 6; hiring disabled | Signed in: posts to the platform board; progress saved locally, cloud-mirrored |
+| **Score chase** | any beaten stage | Same rules, submission on | Local board (personal best); signed in, also posts to the platform board |
 
 **Difficulty curve (Journey).** Blocks of four: block 1 bakery-only restock/serve; block 2 adds a second
 department and `unlock`; later blocks add checkouts, `hire`, `upgrade`, the split `lanes` floor and five-department
@@ -402,7 +403,7 @@ es → es-419, fr → fr-FR, pt → pt-BR, en-AU/NZ/IE/IN/ZA → en-GB — else 
 
 ## 12. StarHermit integration
 
-`starhermit.txt` declares `name`, `launch=index.html`, `owner`, `server=server.js`, `cover=coverart.png`.
+`starhermit.txt` declares `name`, `launch=index.html`, `owner`, `server=score-script.js`, `cover=coverart.png`.
 
 **Standalone (no launch token).** The client makes no own-server request of any kind (no time probe,
 daily, scores, leaderboard or heartbeat): the UTC daily boundary uses the local clock, and every daily /
@@ -430,15 +431,19 @@ score-chase run records to the local board. `server.js` is only a static host fo
   lists the effective keys.
 - **Invite link.** Signed-in players get **Invite a friend** on the title, copying
   `StarHermit.inviteLink()` with a confirmation toast.
-- **Leaderboard (read-only).** The shift briefing shows the game's first platform board when one exists
-  (`StarHermit.leaderboard()`, names via profiles); otherwise local records. Clients never submit scores
-  on-platform; a ranked run records to the local board instead. Achievements stay local (part of the
+- **Leaderboard.** Signed in, every finished Journey, Daily, Challenge or Score-chase run posts its total
+  through `StarHermit.submitScores` (`platform.submitPlatformScore`: a practice session whose
+  `score-script.js` range-checks it and posts it to the `high-score` board, integer, higher is better,
+  0–1,000,000), and the results screen's `#results-lb` line shows "Leaderboard rank: #N" (or posted / not
+  posted). Learn and Practice post nothing. The shift briefing shows that board ("Platform leaderboard",
+  `StarHermit.leaderboard()`, names via profiles); otherwise local records. Daily and score-chase runs
+  also record to the local board. Achievements stay local (part of the
   cloud-saved doc).
 
-Account strings are localized in the nine locales (`src/sh-strings.js`). Signed in, the only extra call
+Account strings (including the leaderboard line) are localized in the nine locales (`src/sh-strings.js`). Signed in, the only extra call
 is `GET /api/v1/time` (round-trip-adjusted offset for the UTC daily boundary). Not used: platform sessions,
-matchmaking, friend-picker invites, chat and replays — Market Manager is single-player and `server.js` is
-a standalone Node host, not a platform game script, so it reports no scores, achievements or replays.
+matchmaking, friend-picker invites, chat and replays — Market Manager is single-player; `score-script.js` reports
+only leaderboard scores (no achievements or replays) and `server.js` is a standalone Node host for local play.
 
 Everything degrades: any failure falls back to local play against localStorage with no console noise.
 
