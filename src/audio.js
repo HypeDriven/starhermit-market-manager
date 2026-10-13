@@ -77,7 +77,7 @@ export function createAudio(settings = {}) {
       const g = ctx.createGain();
       g.gain.value = volumes[name];
       g.connect(master);
-      buses[name] = g;
+      buses[name] = (globalThis.GameOptions ? globalThis.GameOptions.tagBus(g, name) : g);
     }
     noiseBuffer = makeNoise(ctx);
     if (typeof document !== 'undefined') {
@@ -152,7 +152,7 @@ export function createAudio(settings = {}) {
     if (!ctx || !unlocked || !buses) return false;
     const entry = loadSample(name);
     if (entry.state !== 'ready') return false;
-    const src = ctx.createBufferSource();
+    const src = (globalThis.GameOptions ? globalThis.GameOptions.trackSource(ctx.createBufferSource(), name) : ctx.createBufferSource());
     src.buffer = entry.buffer;
     src.connect(buses.effects);
     src.start();
@@ -173,7 +173,7 @@ export function createAudio(settings = {}) {
   function tone(bus, { freq = 440, dur = 0.15, type = 'sine', gain = 0.2, attack = 0.005, slide = 0, when = 0 }) {
     if (!ctx || !buses) return;
     const t0 = ctx.currentTime + when;
-    const osc = ctx.createOscillator();
+    const osc = (globalThis.GameOptions ? globalThis.GameOptions.trackSource(ctx.createOscillator(), bus) : ctx.createOscillator());
     const g = ctx.createGain();
     osc.type = type;
     osc.frequency.setValueAtTime(freq, t0);
@@ -190,7 +190,7 @@ export function createAudio(settings = {}) {
   function noise(bus, { dur = 0.1, gain = 0.15, freq = 1200, q = 1, type = 'bandpass', when = 0 }) {
     if (!ctx || !buses) return;
     const t0 = ctx.currentTime + when;
-    const src = ctx.createBufferSource();
+    const src = (globalThis.GameOptions ? globalThis.GameOptions.trackSource(ctx.createBufferSource(), bus) : ctx.createBufferSource());
     src.buffer = noiseBuffer;
     src.loop = true;
     const f = ctx.createBiquadFilter();
@@ -291,7 +291,7 @@ export function createAudio(settings = {}) {
   // ------------------------------------------------------------- ambience
   function startAmbience() {
     if (!ctx || ambienceNodes) return;
-    const src = ctx.createBufferSource();
+    const src = (globalThis.GameOptions ? globalThis.GameOptions.trackSource(ctx.createBufferSource(), null) : ctx.createBufferSource());
     src.buffer = noiseBuffer;
     src.loop = true;
     const f = ctx.createBiquadFilter();
