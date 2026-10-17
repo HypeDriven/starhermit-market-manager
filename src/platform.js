@@ -6,7 +6,7 @@
 // localStorage is always the offline cache: any failure falls back to local
 // play with no console noise.
 
-import { saveKey, loadKey } from './session.js';
+import { saveKey, loadKey, mergeProgress } from './session.js';
 
 const CLOUD_DEBOUNCE_MS = 2000;
 const SETTINGS_DEBOUNCE_MS = 1500;
@@ -56,6 +56,9 @@ export function createPlatform({ sh: shDep } = {}) {
   }
 
   sh.on('saved', (ok) => setSync(ok ? 'synced' : 'offline'));
+  // A conditional write lost to a newer save from another device: reload the
+  // slot, merge it with the local cache, tell the game, save the merge back.
+  sh.on('saveconflict', () => { resolveConflict().catch(() => setSync('error')); });
   sh.on('auth', (a) => {
     if (!a.signedIn) { nickname = null; setSync('local'); }
     for (const fn of authListeners) { try { fn(a); } catch { /* listener guard */ } }
@@ -97,6 +100,35 @@ export function createPlatform({ sh: shDep } = {}) {
     if (doc.boards && typeof doc.boards === 'object') saveKey(LOCAL_BOARD_KEY, doc.boards);
     setSync('synced');
     return true;
+  }
+
+  let onMerged = null; // () after a conflict merge rewrote the local cache
+  async function resolveConflict() {
+    if (!sh.signedIn) return;
+    setSync('saving');
+    const doc = await sh.loadJSON();
+    if (sh.saveLoadFailed() || sh.saveConflicted()) { setSync('error'); return; }
+    const remote = doc && typeof doc === 'object' ? doc : {};
+    saveKey('progress.v1', mergeProgress(remote.progress, loadKey('progress.v1')));
+    saveKey(LOCAL_BOARD_KEY, mergeBoards(remote.boards, readLocalBoards()));
+    if (typeof onMerged === 'function') { try { onMerged(); } catch { /* listener guard */ } }
+    queueCloudSave();
+  }
+  // Both devices' local boards, de-duplicated by session, best first.
+  function mergeBoards(a, b) {
+    const out = {};
+    for (const board of new Set([...Object.keys(a || {}), ...Object.keys(b || {})])) {
+      out[board] = {};
+      const da = (a || {})[board] || {}, db = (b || {})[board] || {};
+      for (const key of new Set([...Object.keys(da), ...Object.keys(db)])) {
+        const seen = new Set();
+        out[board][key] = [...(da[key] || []), ...(db[key] || [])]
+          .filter((e) => { const k = e && (e.sessionId || JSON.stringify(e)); if (!e || seen.has(k)) return false; seen.add(k); return true; })
+          .sort((x, y) => y.score - x.score || x.durationMs - y.durationMs)
+          .slice(0, LOCAL_BOARD_LIMIT);
+      }
+    }
+    return out;
   }
 
   // ------------------------------------------------------- settings KV
@@ -246,6 +278,9 @@ export function createPlatform({ sh: shDep } = {}) {
     set onIdentity(cb) { onIdentity = cb; },
     get onSync() { return onSync; },
     set onSync(cb) { onSync = cb; },
+    get onMerged() { return onMerged; },
+    set onMerged(cb) { onMerged = cb; },
+    mergeBoards: (a, b) => mergeBoards(a, b),
     init,
     serverTimeOffset,
     serverNow,

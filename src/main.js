@@ -21,6 +21,7 @@ import {
 } from './gfx.js';
 import { createGraphicsPanel } from './gfx-panel.js';
 import { shStrings } from './sh-strings.js';
+import { T, N, initLanguage, onLanguage, getLang } from './i18n.js';
 
 // Keyboard actions → default KeyboardEvent.code values; mirrors the control.*
 // lines in starhermit.txt. The player's StarHermit bindings replace them.
@@ -38,21 +39,21 @@ function keyLabel(code) {
 
 // Help "Controls" card; keyboard rows show the effective bindings.
 const controlMap = (b) => [
-  { keys: 'Tap / click a shelf', action: 'restock it (or open its actions)' },
-  { keys: 'Tap / click a checkout', action: 'serve the next guest' },
-  { keys: [...b.prev, ...b.next].map(keyLabel).join(' '), action: 'move focus between market actions' },
-  { keys: 'Enter / Space', action: 'confirm the focused action' },
-  { keys: b.hint.map(keyLabel).join(' / '), action: 'hint' },
-  { keys: b.undo.map(keyLabel).join(' / '), action: 'undo (Practice only)' },
-  { keys: b.camera.map(keyLabel).join(' / '), action: 'reset camera' },
-  { keys: [...b.pause, ...b.back].map(keyLabel).join(' or '), action: 'pause / close panel' },
-  { keys: 'Gamepad d-pad / left stick', action: 'move focus' },
-  { keys: 'Gamepad A', action: 'confirm' },
-  { keys: 'Gamepad B', action: 'cancel / close' },
-  { keys: 'Gamepad Start', action: 'pause' },
-  { keys: 'Gamepad Y', action: 'hint' },
+  { keys: N('Tap / click a shelf'), action: N('restock it (or open its actions)') },
+  { keys: N('Tap / click a checkout'), action: N('serve the next guest') },
+  { keys: [...b.prev, ...b.next].map(keyLabel).join(' '), action: N('move focus between market actions') },
+  { keys: N('Enter / Space'), action: N('confirm the focused action') },
+  { keys: b.hint.map(keyLabel).join(' / '), action: N('hint') },
+  { keys: b.undo.map(keyLabel).join(' / '), action: N('undo (Practice only)') },
+  { keys: b.camera.map(keyLabel).join(' / '), action: N('reset camera') },
+  { keys: [...b.pause, ...b.back].map(keyLabel).join(' / '), action: N('pause / close panel') },
+  { keys: N('Gamepad d-pad / left stick'), action: N('move focus') },
+  { keys: N('Gamepad A'), action: N('confirm') },
+  { keys: N('Gamepad B'), action: N('cancel / close') },
+  { keys: N('Gamepad Start'), action: N('pause') },
+  { keys: N('Gamepad Y'), action: N('hint') },
 ];
-const shT = shStrings(typeof navigator !== 'undefined' ? (navigator.languages || [navigator.language]) : []);
+const shT = () => shStrings([getLang()]);
 
 const REPEAT_DELAY_MS = 220;
 const GAMEPAD_DEADZONE = 0.25;
@@ -60,6 +61,8 @@ const MAX_CATCHUP_STEPS = 4;
 const MAX_LOOP_ERRORS = 5;
 
 function boot() {
+  // The game language follows Settings › Language (sh-language.js).
+  initLanguage();
   // ------------------------------------------------------------ services
   const settings = loadSettings();
   let progress = loadProgress();
@@ -124,7 +127,7 @@ function boot() {
   ui.applySettingsClasses(settings);
 
   const gfxPanel = createGraphicsPanel(document.getElementById('gfx-section'), {
-    locale: (typeof navigator !== 'undefined' && (navigator.languages?.[0] || navigator.language)) || 'en-US',
+    locale: getLang(),
     getSaved: () => settings.graphics,
     onChange: applyGraphics,
     getInfo: graphicsInfo,
@@ -132,10 +135,15 @@ function boot() {
   applyGraphics(settings.graphics);
 
   platform.onError = (info) => {
-    if (info.kind === 'rate-limited') ui.toast('Server is busy — will retry in a moment', 'info');
+    if (info.kind === 'rate-limited') ui.toast(N('Server is busy — will retry in a moment'), 'info');
   };
   platform.onIdentity = ({ nickname }) => {
     ui.setPlayerInfo({ nickname, status: platform.syncStatus, hosted: platform.hosted });
+  };
+  // A cloud-save conflict merge rewrote the local cache: pick up the merged progress.
+  platform.onMerged = () => {
+    progress = loadProgress();
+    if (appScreen === 'title') ui.showTitle(progress);
   };
   platform.onSync = (status) => {
     ui.setPlayerInfo({ nickname: platform.nickname, status, hosted: platform.hosted });
@@ -143,20 +151,20 @@ function boot() {
   // Sign-in (platform host, no token) / invite (signed in); hidden locally.
   const refreshAccount = () => ui.setAccountButtons({ signIn: platform.canSignIn(), invite: platform.hosted });
   ui.wireAccount({
-    labels: { signIn: shT.signIn, invite: shT.invite },
+    labels: { signIn: shT().signIn, invite: shT().invite },
     onSignIn: () => platform.signIn(),
     onInvite: async () => {
       const link = platform.inviteLink();
       if (!link) return;
-      try { await navigator.clipboard.writeText(link); ui.toast(shT.copied, 'good'); }
-      catch { ui.toast(shT.copyFailed, 'bad'); }
+      try { await navigator.clipboard.writeText(link); ui.toast(shT().copied, 'good'); }
+      catch { ui.toast(shT().copyFailed, 'bad'); }
     },
   });
   refreshAccount();
   platform.onAuth((a) => {
     refreshAccount();
     ui.setPlayerInfo({ nickname: platform.nickname, status: platform.syncStatus, hosted: platform.hosted });
-    if (!a.signedIn) ui.toast(shT.signedOut, 'info'); // keep playing locally
+    if (!a.signedIn) ui.toast(shT().signedOut, 'info'); // keep playing locally
   });
 
   // First gesture unlocks WebAudio.
@@ -173,7 +181,7 @@ function boot() {
     const date = dailyDateUtc(now);
     const next = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1);
     const mins = Math.max(0, Math.round((next - now.getTime()) / 60000));
-    const countdownText = `new market in ${Math.floor(mins / 60)}h ${String(mins % 60).padStart(2, '0')}m`;
+    const countdownText = T('new market in {h}h {m}m', { h: Math.floor(mins / 60), m: String(mins % 60).padStart(2, '0') });
     ui.setDailyInfo({ date, countdownText });
   }
   refreshDailyInfo();
@@ -219,7 +227,7 @@ function boot() {
   function onCompatContinue() {
     webgl = false;
     document.documentElement.classList.add('force-mirror');
-    ui.toast('Playing without the 3D view — use the on-screen action buttons', 'info');
+    ui.toast(N('Playing without the 3D view — use the on-screen action buttons'), 'info');
     goTitle();
   }
 
@@ -288,7 +296,7 @@ function boot() {
       const rec = progress.journey[s.id];
       const unlocked = i === 0 || !!progress.journey[stages[i - 1].id]?.won;
       return {
-        id: s.id, name: s.name, blurb: s.mastery ? 'Mastery stage' : null, goals: s.goals, par: s.par,
+        id: s.id, name: s.name, blurb: s.mastery ? N('Mastery stage') : null, goals: s.goals, par: s.par,
         won: !!rec?.won, best: rec?.best || null,
         locked: mode === 'score' ? !rec?.won : !unlocked,
       };
@@ -320,7 +328,7 @@ function boot() {
       platform.getLeaderboard({ board, date: config.dailyDate || null })
         .then((entries) => {
           if (pending && pending.config === config && appScreen === 'setup') {
-            ui.showSetupBoard(entries, platform.hosted ? 'Platform leaderboard' : 'Top shifts');
+            ui.showSetupBoard(entries, platform.hosted ? N('Platform leaderboard') : N('Top shifts'));
           }
         })
         .catch(() => {});
@@ -485,8 +493,8 @@ function boot() {
       await sleep(650);
     }
     if (token !== countdownToken) return;
-    ui.showCountdown('Go');
-    ui.announce('Go', 'assertive');
+    ui.showCountdown(N('Go'));
+    ui.announce(N('Go'), 'assertive');
     await sleep(400);
     ui.hideCountdown();
   }
@@ -552,7 +560,7 @@ function boot() {
   function handleLoopError(e) {
     console.error('tick error', e);
     if (++loopErrors >= MAX_LOOP_ERRORS && active) {
-      ui.toast('Something went wrong repeatedly — the shift was paused', 'bad');
+      ui.toast(N('Something went wrong repeatedly — the shift was paused'), 'bad');
       pauseGame(true);
     }
   }
@@ -566,9 +574,9 @@ function boot() {
     audio.mapEvents(events);
     audio.startMusic(musicIntensity());
     for (const ev of events) {
-      if (ev.kind === 'served') ui.toast(`Guest served +${ev.amount}`, 'good');
-      else if (ev.kind === 'left-angry') ui.toast('A guest left angry', 'bad');
-      else if (ev.kind === 'left-empty') ui.toast('A guest found empty shelves', 'info');
+      if (ev.kind === 'served') ui.toast(N('Guest served +{n}'), 'good', { n: ev.amount });
+      else if (ev.kind === 'left-angry') ui.toast(N('A guest left angry'), 'bad');
+      else if (ev.kind === 'left-empty') ui.toast(N('A guest found empty shelves'), 'info');
     }
   }
 
@@ -658,7 +666,7 @@ function boot() {
       if (renderer) renderer.syncState(round.session.state, []);
       ui.updateHUD(round.session.state, round.session, round.config);
       ui.updateBoardMirror(round.session.state, round.config);
-      ui.toast('Undone', 'info');
+      ui.toast(N('Undone'), 'info');
       audio.uiClick();
     }
   }
@@ -667,13 +675,14 @@ function boot() {
   function showHint() {
     if (!round || !active || paused) return;
     const legal = round.session.legalActions();
-    if (!legal.length) { ui.announce('No actions available right now'); return; }
+    if (!legal.length) { ui.announce(N('No actions available right now')); return; }
     const order = ['serve', 'restock', 'unlock', 'hire', 'upgrade'];
     const pick = order.flatMap((t) => legal.filter((a) => a.type === t))[0];
     const target = hintTarget(pick);
     if (target && renderer) renderer.setHighlight([target]);
-    ui.announce(hintText(pick), 'assertive');
-    ui.toast(hintText(pick), 'info');
+    const [hk, hv] = hintText(pick);
+    ui.announce(hk, 'assertive', hv);
+    ui.toast(hk, 'info', hv);
     clearTimeout(hintTimer);
     hintTimer = setTimeout(clearHint, 3000);
   }
@@ -687,11 +696,11 @@ function boot() {
   }
 
   function hintText(action) {
-    if (action.type === 'serve') return `Serve checkout ${action.checkoutId.slice(1)} — guests are waiting`;
-    if (action.type === 'restock') return `Restock shelf ${action.displayId.slice(1)}`;
-    if (action.type === 'unlock') return 'You can afford to unlock a department';
-    if (action.type === 'hire') return `Hire a ${action.role} from the staff panel`;
-    return `Upgrade a ${action.targetKind}`;
+    if (action.type === 'serve') return [N('Serve checkout {n} — guests are waiting'), { n: action.checkoutId.slice(1) }];
+    if (action.type === 'restock') return [N('Restock shelf {n}'), { n: action.displayId.slice(1) }];
+    if (action.type === 'unlock') return [N('You can afford to unlock a department')];
+    if (action.type === 'hire') return [action.role === 'cashier' ? N('Hire a cashier from the staff panel') : N('Hire a stocker from the staff panel')];
+    return [action.targetKind === 'checkout' ? N('Upgrade a checkout') : N('Upgrade a shelf')];
   }
 
   function clearHint() {
@@ -783,28 +792,55 @@ function boot() {
     // Signed in: ranked modes (not Learn / Practice) post to the platform board.
     if (platform.hosted && mode !== 'learn' && mode !== 'practice') {
       const shown = lastResults;
-      ui.setLeaderboardLine(shT.lbPosting);
+      shown.lb = { pending: true };
+      ui.setLeaderboardLine(lbText(shown.lb));
       platform.submitPlatformScore(score.total).then((r) => {
-        shown.lbLine = !r.posted ? shT.lbNotPosted
-          : r.rank ? shT.lbRank.replace('{rank}', r.rank) : shT.lbPosted;
+        shown.lb = r;
+        shown.lbLine = lbText(r);
         if (lastResults === shown && appScreen === 'results') ui.setLeaderboardLine(shown.lbLine);
       });
     }
   }
+
+  function lbText(r) {
+    if (!r) return null;
+    if (r.pending) return shT().lbPosting;
+    return !r.posted ? shT().lbNotPosted : r.rank ? shT().lbRank.replace('{rank}', r.rank) : shT().lbPosted;
+  }
+
+  // Settings › Language (or the account preference arriving) changed the game
+  // language: markup is re-applied by i18n.js; re-render whatever is on screen
+  // in place. A running shift keeps going untouched.
+  function relocalize() {
+    ui.labelAccount({ signIn: shT().signIn, invite: shT().invite });
+    gfxPanel.setLocale(getLang());
+    refreshDailyInfo();
+    ui.setPlayerInfo({ nickname: platform.nickname, status: platform.syncStatus, hosted: platform.hosted });
+    if (lastResults && lastResults.lb) lastResults.lbLine = lbText(lastResults.lb);
+    if (round) {
+      ui.relocalizeGame();
+      ui.updateHUD(round.session.state, round.session, round.config);
+      ui.updateBoardMirror(round.session.state, round.config);
+      if (paused && appScreen === 'pause') ui.showPause(awayTicks);
+    }
+    if (appScreen === 'help') ui.showHelp(controlMap(bindings));
+    else if (['title', 'mode-select', 'stage-select', 'setup', 'results'].includes(appScreen)) restoreScreen(appScreen);
+  }
+  onLanguage(relocalize);
 
   function nextAction(mode, id, won) {
     if (mode === 'journey' && won) {
       const stages = journeyStages();
       const i = stages.findIndex((s) => s.id === id);
       if (i >= 0 && i + 1 < stages.length) {
-        return { label: 'Next: ' + stages[i + 1].name, mode: 'journey', id: stages[i + 1].id };
+        return { name: stages[i + 1].name, mode: 'journey', id: stages[i + 1].id };
       }
     }
     if (mode === 'learn' && won) {
       const tuts = tutorialStages();
       const i = tuts.findIndex((t) => t.id === id);
       if (i >= 0 && i + 1 < tuts.length) {
-        return { label: 'Next: ' + tuts[i + 1].name, mode: 'learn', id: tuts[i + 1].id };
+        return { name: tuts[i + 1].name, mode: 'learn', id: tuts[i + 1].id };
       }
     }
     return null;
@@ -879,7 +915,7 @@ function boot() {
     progress.tutorialsDone = [];
     saveProgress(progress);
     platform.queueCloudSave();
-    ui.toast('Tutorial progress reset', 'info');
+    ui.toast(N('Tutorial progress reset'), 'info');
     showStageSelectFor('learn');
   }
 
@@ -979,7 +1015,7 @@ function boot() {
   // ------------------------------------------------------------- errors
   window.addEventListener('error', (e) => {
     console.error('uncaught', e.error || e.message);
-    ui.toast('Something hiccuped — the game kept going', 'bad');
+    ui.toast(N('Something hiccuped — the game kept going'), 'bad');
   });
 
   // ------------------------------------------------------------ helpers

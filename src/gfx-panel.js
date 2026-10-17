@@ -127,8 +127,8 @@ export function graphicsStrings(locale) {
  * - getInfo(words): { gpu, detected, resolved, summary, postFailed, webgl }
  */
 export function createGraphicsPanel(root, { getSaved, onChange, getInfo, locale }) {
-  const L = graphicsStrings(locale);
-  const lang = pickLocale(locale);
+  let L = graphicsStrings(locale);
+  let lang = pickLocale(locale);
   root.setAttribute('lang', lang);
   const legend = root.querySelector('legend');
   if (legend) legend.textContent = L.legend;
@@ -139,9 +139,12 @@ export function createGraphicsPanel(root, { getSaved, onChange, getInfo, locale 
     if (text !== undefined) n.textContent = text;
     return n;
   };
-  const labelled = (text, control, extra) => {
+  const labels = []; // [span, key] relabelled by setLocale
+  const labelled = (key, control, extra) => {
     const lab = make('label', { class: 'gfx-row' });
-    lab.append(make('span', { class: 'gfx-label' }, text), control);
+    const span = make('span', { class: 'gfx-label' }, L[key]);
+    labels.push([span, key]);
+    lab.append(span, control);
     if (extra) lab.append(extra);
     return lab;
   };
@@ -154,7 +157,7 @@ export function createGraphicsPanel(root, { getSaved, onChange, getInfo, locale 
   // Render scale
   const scale = make('input', { id: 'gfx-render-scale', 'data-gfx': 'render_scale', type: 'range', min: '50', max: '200', step: '10' });
   const scaleOut = make('output', { id: 'gfx-render-scale-value', class: 'gfx-value', for: 'gfx-render-scale' }, '100%');
-  const scaleRow = labelled(L.renderScale, scale, scaleOut);
+  const scaleRow = labelled('renderScale', scale, scaleOut);
   scaleRow.classList.add('gfx-range');
 
   // One select per category
@@ -165,21 +168,24 @@ export function createGraphicsPanel(root, { getSaved, onChange, getInfo, locale 
     sel.append(make('option', { value: 'preset' }, L.fromPreset));
     for (const t of tiers) sel.append(make('option', { value: t }, L[t] || t));
     catSelects[cat] = sel;
-    grid.append(labelled(L[cat], sel));
+    grid.append(labelled(cat, sel));
   }
 
   const adaptive = make('input', { id: 'gfx-adaptive', 'data-gfx': 'adaptive', type: 'checkbox' });
   const showFps = make('input', { id: 'gfx-show-fps', 'data-gfx': 'show_fps', type: 'checkbox' });
   const adaptiveRow = make('label', { class: 'check' });
-  adaptiveRow.append(adaptive, document.createTextNode(' ' + L.adaptive));
+  const adaptiveText = document.createTextNode(' ' + L.adaptive);
+  adaptiveRow.append(adaptive, adaptiveText);
   const fpsRow = make('label', { class: 'check' });
-  fpsRow.append(showFps, document.createTextNode(' ' + L.showFps));
+  const fpsText = document.createTextNode(' ' + L.showFps);
+  fpsRow.append(showFps, fpsText);
 
   const summary = make('p', { id: 'gfx-summary', class: 'gfx-summary muted', 'aria-live': 'polite' });
   const note = make('p', { id: 'gfx-post-note', class: 'gfx-note', role: 'status' });
   note.hidden = true;
 
-  root.append(labelled(L.quality, preset), scaleRow, grid, adaptiveRow, fpsRow, summary, note);
+  // game-options.js later appends the shared sections after these rows.
+  root.append(labelled('quality', preset), scaleRow, grid, adaptiveRow, fpsRow, summary, note);
 
   function commit(next) {
     onChange(next);
@@ -224,5 +230,20 @@ export function createGraphicsPanel(root, { getSaved, onChange, getInfo, locale 
     root.dataset.gfxPreset = r.preset;
   }
 
-  return { refresh, strings: L, locale: lang };
+  // The game language changed: relabel every control in place (the shared
+  // sections game-options.js mounted in this fieldset are left alone).
+  function setLocale(next) {
+    L = graphicsStrings(next);
+    lang = pickLocale(next);
+    root.setAttribute('lang', lang);
+    if (legend) legend.textContent = L.legend;
+    for (const [span, key] of labels) span.textContent = L[key];
+    for (const o of preset.options) if (o.value !== 'auto') o.textContent = L[o.value];
+    for (const sel of Object.values(catSelects)) for (const o of sel.options) if (o.value !== 'preset') o.textContent = L[o.value] || o.value;
+    adaptiveText.textContent = ' ' + L.adaptive;
+    fpsText.textContent = ' ' + L.showFps;
+    refresh();
+  }
+
+  return { refresh, setLocale, get strings() { return L; }, get locale() { return lang; } };
 }

@@ -4,49 +4,62 @@
 // cleanly outside a browser.
 
 import { restockCost, upgradeCost } from './rules.js';
+import { T, N } from './i18n.js';
 
 // Stable reason codes -> short human explanations.
 export const REASON_TEXT = {
-  'display-full': 'That shelf is already full',
-  'queue-empty': 'No one is waiting there',
-  'not-enough-money': 'Not enough coins',
-  'department-locked': 'That department is still locked',
-  'max-level': 'Already fully upgraded',
-  'already-hired': 'Already on the team',
-  'already-unlocked': 'Already unlocked',
-  'no-moves-left': 'Out of moves',
-  'game-over': 'This shift has ended',
-  'not-allowed': 'Not allowed in this stage',
-  'no-such-display': 'No shelf there',
-  'no-such-checkout': 'No checkout there',
-  'no-such-role': 'No such role',
-  'no-such-target': 'Nothing to upgrade there',
-  'no-such-department': 'No such department',
-  'malformed-command': 'That action did not make sense',
-  'unknown-command': 'Unknown action',
+  'display-full': N('That shelf is already full'),
+  'queue-empty': N('No one is waiting there'),
+  'not-enough-money': N('Not enough coins'),
+  'department-locked': N('That department is still locked'),
+  'max-level': N('Already fully upgraded'),
+  'already-hired': N('Already on the team'),
+  'already-unlocked': N('Already unlocked'),
+  'no-moves-left': N('Out of moves'),
+  'game-over': N('This shift has ended'),
+  'not-allowed': N('Not allowed in this stage'),
+  'no-such-display': N('No shelf there'),
+  'no-such-checkout': N('No checkout there'),
+  'no-such-role': N('No such role'),
+  'no-such-target': N('Nothing to upgrade there'),
+  'no-such-department': N('No such department'),
+  'malformed-command': N('That action did not make sense'),
+  'unknown-command': N('Unknown action'),
 };
 
 export function humanizeReason(reason) {
-  return REASON_TEXT[reason] || 'That will not work right now';
+  return T(REASON_TEXT[reason] || N('That will not work right now'));
 }
 
 const MODES = [
-  { id: 'learn', name: 'Learn', blurb: 'Four short lessons that teach one rule at a time by doing.', duration: '2–4 min each', standing: 'casual', standingText: 'Practice · not ranked' },
-  { id: 'journey', name: 'Journey', blurb: 'Forty authored stages, from first shift to market legend.', duration: '3–8 min each', standing: 'casual', standingText: 'Progress saved locally' },
-  { id: 'daily', name: 'Daily', blurb: 'One shared market per UTC day. Same seed for everyone.', duration: '~4 min', standing: 'ranked', standingText: 'Local board · personal best' },
-  { id: 'practice', name: 'Practice', blurb: 'Pick a pace and play freely. Undo is allowed here.', duration: '3–5 min', standing: 'casual', standingText: 'Not ranked · undo on' },
-  { id: 'challenge', name: 'Challenge', blurb: 'Five constrained stages: move limits, speed, altered floors.', duration: '2–6 min each', standing: 'casual', standingText: 'Progress saved locally' },
-  { id: 'score', name: 'Score chase', blurb: 'Play any beaten stage for a higher score on the board.', duration: '3–8 min', standing: 'ranked', standingText: 'Local board · personal best' },
+  { id: 'learn', name: N('Learn'), blurb: N('Four short lessons that teach one rule at a time by doing.'), duration: N('2–4 min each'), standing: 'casual', standingText: N('Practice · not ranked') },
+  { id: 'journey', name: N('Journey'), blurb: N('Forty authored stages, from first shift to market legend.'), duration: N('3–8 min each'), standing: 'casual', standingText: N('Progress saved locally') },
+  { id: 'daily', name: N('Daily'), blurb: N('One shared market per UTC day. Same seed for everyone.'), duration: N('~4 min'), standing: 'ranked', standingText: N('Local board · personal best') },
+  { id: 'practice', name: N('Practice'), blurb: N('Pick a pace and play freely. Undo is allowed here.'), duration: N('3–5 min'), standing: 'casual', standingText: N('Not ranked · undo on') },
+  { id: 'challenge', name: N('Challenge'), blurb: N('Five constrained stages: move limits, speed, altered floors.'), duration: N('2–6 min each'), standing: 'casual', standingText: N('Progress saved locally') },
+  { id: 'score', name: N('Score chase'), blurb: N('Play any beaten stage for a higher score on the board.'), duration: N('3–8 min'), standing: 'ranked', standingText: N('Local board · personal best') },
 ];
 
 const HELP_RULES = [
-  { icon: '1', title: 'Restock shelves', text: 'Guests buy from stocked shelves. Tap a shelf (or its button) to refill it from the stockroom. Refilling costs coins per item.' },
-  { icon: '2', title: 'Serve the queue', text: 'Guests with goods line up at a checkout. Tap the counter to serve the next guest before their patience runs out.' },
-  { icon: '3', title: 'Unlock departments', text: 'Greyed-out shelves belong to locked departments. Pay the unlock cost to open them and raise your goal progress.' },
-  { icon: '4', title: 'Upgrade stations', text: 'Upgraded shelves hold more and sell for more. Upgraded checkouts keep queued guests patient longer.' },
-  { icon: '5', title: 'Hire staff', text: 'A stocker refills the emptiest shelf every few ticks; a cashier serves the longest queue. Staff act on their own.' },
-  { icon: '6', title: 'Win the shift', text: 'Meet every goal — guests served, coins earned, departments unlocked — before the shift timer ends. Fewer angry guests means a better score.' },
+  { icon: '1', title: N('Restock shelves'), text: N('Guests buy from stocked shelves. Tap a shelf (or its button) to refill it from the stockroom. Refilling costs coins per item.') },
+  { icon: '2', title: N('Serve the queue'), text: N('Guests with goods line up at a checkout. Tap the counter to serve the next guest before their patience runs out.') },
+  { icon: '3', title: N('Unlock departments'), text: N('Greyed-out shelves belong to locked departments. Pay the unlock cost to open them and raise your goal progress.') },
+  { icon: '4', title: N('Upgrade stations'), text: N('Upgraded shelves hold more and sell for more. Upgraded checkouts keep queued guests patient longer.') },
+  { icon: '5', title: N('Hire staff'), text: N('A stocker refills the emptiest shelf every few ticks; a cashier serves the longest queue. Staff act on their own.') },
+  { icon: '6', title: N('Win the shift'), text: N('Meet every goal — guests served, coins earned, departments unlocked — before the shift timer ends. Fewer angry guests means a better score.') },
 ];
+
+// Content names (content.js) are English data; they translate at display time.
+// "Practice — Relaxed" / "Daily Market — 2026-10-16" are composed here.
+export function stageName(name) {
+  const s = String(name || '');
+  let m = /^Practice — (\w+)$/.exec(s);
+  if (m) return T('Practice — {pace}', { pace: T(m[1]) });
+  m = /^Daily Market — (.+)$/.exec(s);
+  if (m) return T('Daily Market — {date}', { date: m[1] });
+  return T(s);
+}
+export const deptName = (name) => T(name);
 
 function fmtTime(totalSeconds) {
   const s = Math.max(0, Math.round(totalSeconds));
@@ -114,22 +127,23 @@ export function createUI({ callbacks }) {
   function goalLines(state) {
     const g = state.config.goals;
     const lines = [];
-    if (g.serve) lines.push({ key: 'serve', text: `Serve ${g.serve} guests`, cur: state.stats.served, max: g.serve });
-    if (g.earn) lines.push({ key: 'earn', text: `Earn ${g.earn} coins`, cur: state.stats.revenue, max: g.earn });
+    if (g.serve) lines.push({ key: 'serve', text: T('Serve {n} guests', { n: g.serve }), cur: state.stats.served, max: g.serve });
+    if (g.earn) lines.push({ key: 'earn', text: T('Earn {n} coins', { n: g.earn }), cur: state.stats.revenue, max: g.earn });
     if (g.unlock) {
       const have = state.departments.filter((d) => d.unlocked).length;
-      lines.push({ key: 'unlock', text: `Unlock ${g.unlock} departments`, cur: have, max: g.unlock });
+      lines.push({ key: 'unlock', text: T('Unlock {n} departments', { n: g.unlock }), cur: have, max: g.unlock });
     }
-    if (g.maxAngry !== undefined) lines.push({ key: 'calm', text: `Keep angry guests at ${g.maxAngry} or fewer`, cur: state.stats.angry, max: g.maxAngry, soft: true });
+    if (g.maxAngry !== undefined) lines.push({ key: 'calm', text: T('Keep angry guests at {n} or fewer', { n: g.maxAngry }), cur: state.stats.angry, max: g.maxAngry, soft: true });
     return lines;
   }
 
   function objectiveText(state) {
+    const GOAL_WORDS = { serve: N('serve {cur}/{max}'), earn: N('earn {cur}/{max}'), unlock: N('unlock {cur}/{max}') };
     const parts = goalLines(state).map((l) => {
-      if (l.key === 'calm') return `angry ${l.cur}/${l.max} max`;
-      return `${l.key} ${Math.min(l.cur, l.max)}/${l.max}`;
+      if (l.key === 'calm') return T('angry {cur}/{max} max', { cur: l.cur, max: l.max });
+      return T(GOAL_WORDS[l.key], { cur: Math.min(l.cur, l.max), max: l.max });
     });
-    return parts.length ? 'Goals — ' + parts.join(' · ') : 'Free play';
+    return parts.length ? T('Goals — {list}', { list: parts.join(' · ') }) : T('Free play');
   }
 
   // ---------------------------------------------------------------- screens
@@ -161,8 +175,8 @@ export function createUI({ callbacks }) {
     if (progress) {
       const won = Object.values(progress.journey || {}).filter((r) => r.won).length;
       els.journeySummary.textContent = won
-        ? `Journey: ${won} of 40 stages complete · ${progress.guestsServedTotal || 0} guests served all time`
-        : 'New around here? Start with Learn, or jump straight into Journey.';
+        ? T('Journey: {won} of 40 stages complete · {guests} guests served all time', { won, guests: progress.guestsServedTotal || 0 })
+        : T('New around here? Start with Learn, or jump straight into Journey.');
     }
   }
 
@@ -171,14 +185,14 @@ export function createUI({ callbacks }) {
     els.modeCards.replaceChildren(...MODES.map((m) => {
       const card = el('button', { class: 'card', type: 'button' });
       const standingText = hosted && (m.id === 'journey' || m.id === 'challenge')
-        ? 'Progress synced · posts to the platform leaderboard'
+        ? T('Progress synced · posts to the platform leaderboard')
         : hosted && (m.id === 'daily' || m.id === 'score')
-          ? 'Personal best · posts to the platform leaderboard'
-          : m.standingText;
+          ? T('Personal best · posts to the platform leaderboard')
+          : T(m.standingText);
       card.append(
-        el('h3', {}, m.name),
-        el('p', {}, m.blurb),
-        el('p', { class: 'meta' }, 'About ' + m.duration),
+        el('h3', {}, T(m.name)),
+        el('p', {}, T(m.blurb)),
+        el('p', { class: 'meta' }, T('About {duration}', { duration: T(m.duration) })),
         el('p', { class: 'meta ' + m.standing }, standingText),
       );
       card.addEventListener('click', () => callbacks.onModeChosen(m.id));
@@ -187,26 +201,28 @@ export function createUI({ callbacks }) {
   }
 
   const MODE_HEADINGS = {
-    learn: 'Lessons', journey: 'Journey stages', daily: 'Daily market',
-    practice: 'Practice pace', challenge: 'Challenges', score: 'Score chase — pick a stage',
+    learn: N('Lessons'), journey: N('Journey stages'), daily: N('Daily market'),
+    practice: N('Practice pace'), challenge: N('Challenges'), score: N('Score chase — pick a stage'),
   };
 
   function showStageSelect(mode, items) {
     showScreen('stage-select');
-    els.stageHeading.textContent = MODE_HEADINGS[mode] || 'Stages';
+    els.stageHeading.textContent = T(MODE_HEADINGS[mode] || N('Stages'));
     els.stageList.replaceChildren(...items.map((it) => {
       const card = el('button', { class: 'stage-card' + (it.locked ? ' locked' : ''), type: 'button' });
       card.append(
-        el('span', { class: 'name' }, it.name),
-        it.blurb ? el('span', { class: 'sub' }, it.blurb) : el('span', { class: 'sub' }, goalSummary(it.goals)),
-        el('span', { class: 'sub' }, 'Par ' + ticksToClock(it.par?.ticks ?? 0, 500) + (it.best ? ' · best ' + it.best : '')),
+        el('span', { class: 'name' }, stageName(it.name)),
+        it.blurb ? el('span', { class: 'sub' }, T(it.blurb)) : el('span', { class: 'sub' }, goalSummary(it.goals)),
+        el('span', { class: 'sub' }, it.best
+          ? T('Par {time} · best {best}', { time: ticksToClock(it.par?.ticks ?? 0, 500), best: it.best })
+          : T('Par {time}', { time: ticksToClock(it.par?.ticks ?? 0, 500) })),
       );
       if (it.locked) {
         card.disabled = true;
-        card.title = 'Finish earlier stages to unlock this one';
-        card.append(el('span', { class: 'badge' }, 'Locked'));
+        card.title = T('Finish earlier stages to unlock this one');
+        card.append(el('span', { class: 'badge' }, T('Locked')));
       } else {
-        if (it.won) card.append(el('span', { class: 'badge won' }, 'Cleared'));
+        if (it.won) card.append(el('span', { class: 'badge won' }, T('Cleared')));
         card.addEventListener('click', () => callbacks.onStageChosen(mode, it.id));
       }
       return card;
@@ -215,25 +231,25 @@ export function createUI({ callbacks }) {
 
   function goalSummary(goals) {
     const parts = [];
-    if (goals?.serve) parts.push(`serve ${goals.serve}`);
-    if (goals?.earn) parts.push(`earn ${goals.earn}`);
-    if (goals?.unlock) parts.push(`unlock ${goals.unlock}`);
-    return parts.length ? 'Goals: ' + parts.join(', ') : 'Open play';
+    if (goals?.serve) parts.push(T('serve {n}', { n: goals.serve }));
+    if (goals?.earn) parts.push(T('earn {n}', { n: goals.earn }));
+    if (goals?.unlock) parts.push(T('unlock {n}', { n: goals.unlock }));
+    return parts.length ? T('Goals: {list}', { list: parts.join(', ') }) : T('Open play');
   }
 
   function showSetup(mode, config, hosted = false) {
     showScreen('setup');
-    els.setupHeading.textContent = config.name;
+    els.setupHeading.textContent = stageName(config.name);
     els.setupSummary.textContent = goalSummary(config.goals) + ' · ' + modeLabel(mode);
-    els.setupBlurb.textContent = config.blurb || '';
+    els.setupBlurb.textContent = config.blurb ? T(config.blurb) : '';
     els.setupGoals.replaceChildren(...goalLinesFromConfig(config).map((t) => el('li', {}, t)));
-    els.setupDuration.textContent = 'Up to ' + ticksToClock(config.maxTicks, 500);
+    els.setupDuration.textContent = T('Up to {time}', { time: ticksToClock(config.maxTicks, 500) });
     els.setupRules.textContent = rulesSummary(config);
     els.setupRanked.textContent = hosted
         ? (mode === 'learn' || mode === 'practice'
-          ? 'Casual — progress syncs to your account'
-          : 'Ranked — your total posts to the platform leaderboard')
-        : 'Casual — result stays on this device';
+          ? T('Casual — progress syncs to your account')
+          : T('Ranked — your total posts to the platform leaderboard'))
+        : T('Casual — result stays on this device');
     // Refilled by showSetupBoard once the board read resolves.
     els.setupBoardLabel.hidden = true;
     els.setupBoard.hidden = true;
@@ -247,13 +263,13 @@ export function createUI({ callbacks }) {
       return;
     }
     els.setupBoardLabel.hidden = false;
-    els.setupBoardLabel.textContent = label;
+    els.setupBoardLabel.textContent = T(label);
     els.setupBoard.hidden = false;
     els.setupBoard.replaceChildren(...entries.slice(0, 10).map((e, i) => {
       const li = el('li', {});
       li.append(
         el('span', { class: 'board-rank' }, `#${e.rank != null ? e.rank : i + 1}`),
-        el('span', {}, ` ${e.name || 'Player'} — `),
+        el('span', {}, ` ${e.name || T('Player')} — `),
         el('strong', {}, String(e.score != null ? e.score : 0)),
       );
       return li;
@@ -263,23 +279,27 @@ export function createUI({ callbacks }) {
   function setPlayerInfo({ nickname, status, hosted } = {}) {
     if (!hosted) { els.playerChip.hidden = true; return; }
     const syncText = {
-      synced: 'progress synced to your account',
-      saving: 'saving…',
-      offline: 'offline — will sync later',
-      error: 'sync problem — progress is safe on this device',
+      synced: N('progress synced to your account'),
+      saving: N('saving…'),
+      offline: N('offline — will sync later'),
+      error: N('sync problem — progress is safe on this device'),
     }[status];
     els.playerChip.hidden = false;
-    els.playerChip.textContent = `Playing as ${nickname || 'Player'}${syncText ? ' · ' + syncText : ''}`;
+    const who = T('Playing as {name}', { name: nickname || T('Player') });
+    els.playerChip.textContent = syncText ? who + ' · ' + T(syncText) : who;
   }
 
   // StarHermit account buttons on the title screen.
   function wireAccount({ labels, onSignIn, onInvite }) {
     const signIn = $('btn-signin');
     const invite = $('btn-invite');
-    signIn.textContent = labels.signIn;
-    invite.textContent = labels.invite;
+    labelAccount(labels);
     signIn.addEventListener('click', onSignIn);
     invite.addEventListener('click', onInvite);
+  }
+  function labelAccount(labels) {
+    $('btn-signin').textContent = labels.signIn;
+    $('btn-invite').textContent = labels.invite;
   }
   function setAccountButtons({ signIn, invite }) {
     $('btn-signin').hidden = !signIn;
@@ -290,24 +310,26 @@ export function createUI({ callbacks }) {
   function goalLinesFromConfig(config) {
     const g = config.goals || {};
     const lines = [];
-    if (g.serve) lines.push(`Serve ${g.serve} guests`);
-    if (g.earn) lines.push(`Earn ${g.earn} coins in sales`);
-    if (g.unlock) lines.push(`Have ${g.unlock} departments open`);
-    if (g.maxAngry !== undefined) lines.push(`No more than ${g.maxAngry} guests leave angry`);
-    return lines.length ? lines : ['Play freely'];
+    if (g.serve) lines.push(T('Serve {n} guests', { n: g.serve }));
+    if (g.earn) lines.push(T('Earn {n} coins in sales', { n: g.earn }));
+    if (g.unlock) lines.push(T('Have {n} departments open', { n: g.unlock }));
+    if (g.maxAngry !== undefined) lines.push(T('No more than {n} guests leave angry', { n: g.maxAngry }));
+    return lines.length ? lines : [T('Play freely')];
   }
 
   function rulesSummary(config) {
-    const off = Object.entries(config.allowed || {}).filter(([, v]) => !v).map(([k]) => k);
+    const ACTION_WORDS = { restock: N('restock'), serve: N('serve'), unlock: N('unlock'), upgrade: N('upgrade'), hire: N('hire'), undo: N('undo') };
+    const off = Object.entries(config.allowed || {}).filter(([, v]) => !v).map(([k]) => (ACTION_WORDS[k] ? T(ACTION_WORDS[k]) : k));
     const bits = [];
-    if (config.moveLimit != null) bits.push(`only ${config.moveLimit} moves`);
-    if (off.length) bits.push('no ' + off.join(', '));
-    if (config.initialStocked === false) bits.push('shelves start empty');
-    return bits.length ? 'Special rules: ' + bits.join(' · ') : 'Standard rules';
+    if (config.moveLimit != null) bits.push(T('only {n} moves', { n: config.moveLimit }));
+    if (off.length) bits.push(T('no {list}', { list: off.join(', ') }));
+    if (config.initialStocked === false) bits.push(T('shelves start empty'));
+    return bits.length ? T('Special rules: {list}', { list: bits.join(' · ') }) : T('Standard rules');
   }
 
   function modeLabel(mode) {
-    return { learn: 'Lesson', journey: 'Journey', daily: 'Daily', practice: 'Practice', challenge: 'Challenge', score: 'Score chase' }[mode] || mode;
+    const label = { learn: N('Lesson'), journey: N('Journey'), daily: N('Daily'), practice: N('Practice'), challenge: N('Challenge'), score: N('Score chase') }[mode];
+    return label ? T(label) : mode;
   }
 
   // ---------------------------------------------------------------- HUD
@@ -317,11 +339,11 @@ export function createUI({ callbacks }) {
     els.hudObjective.textContent = objectiveText(state);
     els.hudMoney.textContent = String(state.money);
     els.hudTime.textContent = ticksToClock(Math.max(0, config.maxTicks - state.tick), 500);
-    els.hudServed.textContent = `${state.stats.served} served · ${state.stats.angry} angry`;
+    els.hudServed.textContent = T('{served} served · {angry} angry', { served: state.stats.served, angry: state.stats.angry });
     els.hudScore.textContent = String(extras.score ?? session.score().total);
     if (config.moveLimit != null) {
       els.hudMoves.hidden = false;
-      els.hudMoves.textContent = `Moves left: ${Math.max(0, config.moveLimit - state.commandCount)}`;
+      els.hudMoves.textContent = T('Moves left: {n}', { n: Math.max(0, config.moveLimit - state.commandCount) });
     } else {
       els.hudMoves.hidden = true;
     }
@@ -376,12 +398,12 @@ export function createUI({ callbacks }) {
       if (!d) { panel.hidden = true; return; }
       const dept = state.departments.find((x) => x.id === d.deptId);
       panel.append(
-        el('h3', {}, `${dept ? dept.name : 'Shelf'} — shelf ${d.id.slice(1)}`),
-        el('p', { class: 'detail' }, `Stock ${d.stock}/${d.capacity} · sells for ${d.price} · level ${d.level}`),
+        el('h3', {}, T('{dept} — shelf {n}', { dept: dept ? deptName(dept.name) : T('Shelf'), n: d.id.slice(1) })),
+        el('p', { class: 'detail' }, T('Stock {stock}/{cap} · sells for {price} · level {level}', { stock: d.stock, cap: d.capacity, price: d.price, level: d.level })),
         el('div', { class: 'actions' },
-          cmdButton(`Restock (cost ${restockCost(d)})`, { type: 'restock', displayId: d.id }),
+          cmdButton(T('Restock (cost {n})', { n: restockCost(d) }), { type: 'restock', displayId: d.id }),
           cmdButton(
-            d.level >= 3 ? 'Upgrade (max level)' : `Upgrade (cost ${upgradeCost(state, 'display', d)})`,
+            d.level >= 3 ? T('Upgrade (max level)') : T('Upgrade (cost {n})', { n: upgradeCost(state, 'display', d) }),
             { type: 'upgrade', targetKind: 'display', targetId: d.id }),
         ),
       );
@@ -389,12 +411,12 @@ export function createUI({ callbacks }) {
       const c = state.checkouts.find((x) => x.id === pick.id);
       if (!c) { panel.hidden = true; return; }
       panel.append(
-        el('h3', {}, `Checkout ${c.id.slice(1)}`),
-        el('p', { class: 'detail' }, `${c.queue.length} waiting · level ${c.level}`),
+        el('h3', {}, T('Checkout {n}', { n: c.id.slice(1) })),
+        el('p', { class: 'detail' }, T('{n} waiting · level {level}', { n: c.queue.length, level: c.level })),
         el('div', { class: 'actions' },
-          cmdButton(`Serve next guest (${c.queue.length} waiting)`, { type: 'serve', checkoutId: c.id }),
+          cmdButton(T('Serve next guest ({n} waiting)', { n: c.queue.length }), { type: 'serve', checkoutId: c.id }),
           cmdButton(
-            c.level >= 3 ? 'Upgrade (max level)' : `Upgrade (cost ${upgradeCost(state, 'checkout', c)})`,
+            c.level >= 3 ? T('Upgrade (max level)') : T('Upgrade (cost {n})', { n: upgradeCost(state, 'checkout', c) }),
             { type: 'upgrade', targetKind: 'checkout', targetId: c.id }),
         ),
       );
@@ -402,18 +424,18 @@ export function createUI({ callbacks }) {
       const dept = state.departments.find((x) => x.id === pick.id);
       if (!dept) { panel.hidden = true; return; }
       panel.append(
-        el('h3', {}, dept.name),
-        el('p', { class: 'detail' }, dept.unlocked ? 'Open for business' : 'Locked — shelves are greyed out'),
+        el('h3', {}, deptName(dept.name)),
+        el('p', { class: 'detail' }, dept.unlocked ? T('Open for business') : T('Locked — shelves are greyed out')),
       );
       if (!dept.unlocked) {
         panel.append(el('div', { class: 'actions' },
-          cmdButton(`Unlock (cost ${dept.unlockCost})`, { type: 'unlock', deptId: dept.id })));
+          cmdButton(T('Unlock (cost {n})', { n: dept.unlockCost }), { type: 'unlock', deptId: dept.id })));
       }
     } else {
       panel.hidden = true;
       return;
     }
-    const close = el('button', { class: 'btn btn-ghost', type: 'button', dataset: { cmd: 'close' } }, 'Close');
+    const close = el('button', { class: 'btn btn-ghost', type: 'button', dataset: { cmd: 'close' } }, T('Close'));
     close.addEventListener('click', () => { hideContextPanel(); callbacks.onPickProxy(null); });
     panel.append(close);
   }
@@ -432,16 +454,16 @@ export function createUI({ callbacks }) {
 
   function buildStaffPanel(state) {
     const panel = els.staffPanel;
-    panel.replaceChildren(el('h3', {}, 'Staff'));
+    panel.replaceChildren(el('h3', {}, T('Staff')));
     const roles = [
-      { role: 'stocker', name: 'Stocker', does: 'Refills the emptiest shelf every few ticks.' },
-      { role: 'cashier', name: 'Cashier', does: 'Serves the longest queue every few ticks.' },
+      { role: 'stocker', name: N('Stocker'), does: N('Refills the emptiest shelf every few ticks.'), hire: N('Hire stocker (cost {n})') },
+      { role: 'cashier', name: N('Cashier'), does: N('Serves the longest queue every few ticks.'), hire: N('Hire cashier (cost {n})') },
     ];
     for (const r of roles) {
       const s = state.staff[r.role];
       const wrap = el('div', { class: 'detail' });
-      wrap.append(el('strong', {}, `${r.name} — ${s.hired ? 'on shift' : `hire for ${s.cost}`}`), el('p', { class: 'hint-text' }, r.does));
-      if (!s.hired) wrap.append(cmdButton(`Hire ${r.role} (cost ${s.cost})`, { type: 'hire', role: r.role }));
+      wrap.append(el('strong', {}, `${T(r.name)} — ${s.hired ? T('on shift') : T('hire for {n}', { n: s.cost })}`), el('p', { class: 'hint-text' }, T(r.does)));
+      if (!s.hired) wrap.append(cmdButton(T(r.hire, { n: s.cost }), { type: 'hire', role: r.role }));
       panel.append(wrap);
     }
   }
@@ -457,7 +479,9 @@ export function createUI({ callbacks }) {
   function showPause(awayTicks) {
     if (awayTicks != null) {
       els.pauseAwayNote.hidden = false;
-      els.pauseAwayNote.textContent = `While you were away, ${awayTicks} tick${awayTicks === 1 ? '' : 's'} went by. The market waited — nothing was simulated.`;
+      els.pauseAwayNote.textContent = T(awayTicks === 1
+        ? 'While you were away, {n} tick went by. The market waited — nothing was simulated.'
+        : 'While you were away, {n} ticks went by. The market waited — nothing was simulated.', { n: awayTicks });
     } else {
       els.pauseAwayNote.hidden = true;
     }
@@ -469,23 +493,23 @@ export function createUI({ callbacks }) {
   }
 
   const TERMINAL_TEXT = {
-    'goal-complete': 'Every goal met. The neighborhood noticed.',
-    'shift-ended': 'The shift ended before all goals were met.',
-    'out-of-moves': 'Out of moves — the market could not keep up.',
+    'goal-complete': N('Every goal met. The neighborhood noticed.'),
+    'shift-ended': N('The shift ended before all goals were met.'),
+    'out-of-moves': N('Out of moves — the market could not keep up.'),
   };
 
   function showResults({ session, config, score, newly, best, next, submitted, rank, lbLine }) {
     showScreen('results');
     const won = session.state.phase === 'won';
-    els.resultsHeading.textContent = won ? 'Shift complete' : 'Shift over';
-    els.resultsReason.textContent = TERMINAL_TEXT[session.state.terminalReason] || '';
+    els.resultsHeading.textContent = won ? T('Shift complete') : T('Shift over');
+    els.resultsReason.textContent = TERMINAL_TEXT[session.state.terminalReason] ? T(TERMINAL_TEXT[session.state.terminalReason]) : '';
     const rows = [
-      ['Guests served', score.components.guests],
-      ['Sales revenue', score.components.revenue],
-      ['Satisfaction', score.components.satisfaction],
-      ['Departments', score.components.departments],
-      ['Throughput', score.components.throughput],
-      ['Coins in reserve', score.components.reserves],
+      [T('Guests served'), score.components.guests],
+      [T('Sales revenue'), score.components.revenue],
+      [T('Satisfaction'), score.components.satisfaction],
+      [T('Departments'), score.components.departments],
+      [T('Throughput'), score.components.throughput],
+      [T('Coins in reserve'), score.components.reserves],
     ];
     els.resultsTable.replaceChildren(...rows.map(([k, v]) => {
       const tr = el('tr');
@@ -493,26 +517,29 @@ export function createUI({ callbacks }) {
       return tr;
     }));
     els.resultsTotal.textContent = String(score.total);
-    els.resultsTiebreak.textContent =
-      `Tiebreak: ${score.tiebreak.goalComplete ? 'goals met' : 'goals missed'} · ${score.tiebreak.invalidCount} invalid action${score.tiebreak.invalidCount === 1 ? '' : 's'} · ${ticksToClock(score.tiebreak.ticksElapsed, 500)} elapsed`;
-    const rankText = typeof rank === 'number' && rank > 0 ? ` · rank #${rank}` : '';
+    els.resultsTiebreak.textContent = T('Tiebreak: {goals} · {invalid} · {time} elapsed', {
+      goals: score.tiebreak.goalComplete ? T('goals met') : T('goals missed'),
+      invalid: T(score.tiebreak.invalidCount === 1 ? '{n} invalid action' : '{n} invalid actions', { n: score.tiebreak.invalidCount }),
+      time: ticksToClock(score.tiebreak.ticksElapsed, 500),
+    });
+    const rankText = typeof rank === 'number' && rank > 0 ? ' · ' + T('rank #{rank}', { rank }) : '';
     if (best != null || submitted) {
       els.resultsBest.hidden = false;
-      const tag = submitted === 'local' ? ' · saved to the local board' + rankText
-        : submitted === false ? ' · not recorded' : '';
-      els.resultsBest.textContent = (best != null ? `Best on this stage: ${best}` : 'Result recorded') + tag;
+      const tag = submitted === 'local' ? ' · ' + T('saved to the local board') + rankText
+        : submitted === false ? ' · ' + T('not recorded') : '';
+      els.resultsBest.textContent = (best != null ? T('Best on this stage: {best}', { best }) : T('Result recorded')) + tag;
     } else {
       els.resultsBest.hidden = true;
     }
     setLeaderboardLine(lbLine || null);
     els.resultsAchievements.replaceChildren(...(newly || []).filter(Boolean).map((a) => {
       const li = el('li');
-      li.append(el('strong', {}, 'Achievement: ' + a.name + ' — '), a.desc);
+      li.append(el('strong', {}, T('Achievement: {name}', { name: T(a.name) }) + ' — '), T(a.desc));
       return li;
     }));
     if (next) {
       els.btnNext.hidden = false;
-      els.btnNext.textContent = next.label;
+      els.btnNext.textContent = T('Next: {name}', { name: stageName(next.name) });
       els.btnNext.onclick = () => callbacks.onNext();
     } else {
       els.btnNext.hidden = true;
@@ -534,16 +561,16 @@ export function createUI({ callbacks }) {
       const card = el('div', { class: 'card' });
       card.append(
         el('h3', {}, ''),
-        el('p', {}, r.text),
+        el('p', {}, T(r.text)),
       );
-      card.querySelector('h3').append(el('span', { class: 'help-icon', ariaHidden: 'true' }, r.icon), r.title);
+      card.querySelector('h3').append(el('span', { class: 'help-icon', ariaHidden: 'true' }, r.icon), T(r.title));
       return card;
     });
     if (controlMap.length) {
       const card = el('div', { class: 'card' });
-      card.append(el('h3', {}, 'Controls'));
+      card.append(el('h3', {}, T('Controls')));
       const list = el('ul');
-      for (const c of controlMap) list.append(el('li', {}, `${c.keys} — ${c.action}`));
+      for (const c of controlMap) list.append(el('li', {}, `${T(c.keys)} — ${T(c.action)}`));
       card.append(list);
       cards.push(card);
     }
@@ -584,7 +611,7 @@ export function createUI({ callbacks }) {
 
   function wireSettings(themes) {
     const themeSelect = $('set-theme');
-    for (const t of themes) themeSelect.append(el('option', { value: t.id }, t.name));
+    for (const t of themes) themeSelect.append(el('option', { value: t.id, dataset: { i18n: t.name } }, T(t.name)));
     els.settingsForm.addEventListener('input', (e) => {
       if (e.target === $('btn-replay-tutorials')) return;
       if (e.target.closest && e.target.closest('#gfx-section')) return; // gfx-panel.js owns these
@@ -607,14 +634,16 @@ export function createUI({ callbacks }) {
   }
 
   // ------------------------------------------------------- announcements
-  function announce(msg, priority = 'polite') {
+  function announce(key, priority = 'polite', vars) {
+    const msg = T(key, vars);
     const region = priority === 'assertive' ? els.alerts : els.live;
     region.textContent = '';
     // reassign on next frame so repeated messages are re-announced
     requestAnimationFrame(() => { region.textContent = msg; });
   }
 
-  function toast(msg, kind = 'info') {
+  function toast(key, kind = 'info', vars) {
+    const msg = T(key, vars);
     const node = el('p', { class: 'toast ' + kind, role: 'status' }, msg);
     els.toasts.append(node);
     announce(msg, kind === 'bad' ? 'assertive' : 'polite');
@@ -627,10 +656,10 @@ export function createUI({ callbacks }) {
     lastConfig = config;
     const open = state.departments.filter((d) => d.unlocked).length;
     const queued = state.checkouts.reduce((n, c) => n + c.queue.length, 0);
-    els.boardMirror.textContent =
-      `Tick ${state.tick}/${config.maxTicks} · ${state.money} coins · ` +
-      `${open}/${state.departments.length} departments open · ${queued} in line · ` +
-      `${state.stats.served} served, ${state.stats.angry} angry`;
+    els.boardMirror.textContent = T('Tick {tick}/{max} · {money} coins · {open}/{depts} departments open · {queued} in line · {served} served, {angry} angry', {
+      tick: state.tick, max: config.maxTicks, money: state.money, open, depts: state.departments.length,
+      queued, served: state.stats.served, angry: state.stats.angry,
+    });
 
     const entries = [];
     for (const d of state.displays) {
@@ -639,7 +668,7 @@ export function createUI({ callbacks }) {
         key: 'restock-' + d.id,
         cmd: { type: 'restock', displayId: d.id },
         pick: { kind: 'display', id: d.id },
-        label: `Restock ${dept ? dept.name : 'shelf'} shelf ${d.id.slice(1)} — ${d.stock}/${d.capacity} stocked, cost ${restockCost(d)}`,
+        label: T('Restock {dept} shelf {n} — {stock}/{cap} stocked, cost {cost}', { dept: dept ? deptName(dept.name) : '', n: d.id.slice(1), stock: d.stock, cap: d.capacity, cost: restockCost(d) }),
       });
     }
     for (const c of state.checkouts) {
@@ -647,7 +676,7 @@ export function createUI({ callbacks }) {
         key: 'serve-' + c.id,
         cmd: { type: 'serve', checkoutId: c.id },
         pick: { kind: 'checkout', id: c.id },
-        label: `Serve checkout ${c.id.slice(1)} — ${c.queue.length} waiting`,
+        label: T('Serve checkout {n} — {waiting} waiting', { n: c.id.slice(1), waiting: c.queue.length }),
       });
     }
     // Upgrades are core actions; without mirror entries, keyboard-only
@@ -658,8 +687,9 @@ export function createUI({ callbacks }) {
         key: 'upgrade-' + d.id,
         cmd: { type: 'upgrade', targetKind: 'display', targetId: d.id },
         pick: { kind: 'display', id: d.id },
-        label: `Upgrade ${dept ? dept.name : 'shelf'} shelf ${d.id.slice(1)} — level ${d.level}` +
-          (d.level >= 3 ? ' (max)' : `, cost ${upgradeCost(state, 'display', d)}`),
+        label: d.level >= 3
+          ? T('Upgrade {dept} shelf {n} — level {level} (max)', { dept: dept ? deptName(dept.name) : '', n: d.id.slice(1), level: d.level })
+          : T('Upgrade {dept} shelf {n} — level {level}, cost {cost}', { dept: dept ? deptName(dept.name) : '', n: d.id.slice(1), level: d.level, cost: upgradeCost(state, 'display', d) }),
       });
     }
     for (const c of state.checkouts) {
@@ -667,8 +697,9 @@ export function createUI({ callbacks }) {
         key: 'upgrade-' + c.id,
         cmd: { type: 'upgrade', targetKind: 'checkout', targetId: c.id },
         pick: { kind: 'checkout', id: c.id },
-        label: `Upgrade checkout ${c.id.slice(1)} — level ${c.level}` +
-          (c.level >= 3 ? ' (max)' : `, cost ${upgradeCost(state, 'checkout', c)}`),
+        label: c.level >= 3
+          ? T('Upgrade checkout {n} — level {level} (max)', { n: c.id.slice(1), level: c.level })
+          : T('Upgrade checkout {n} — level {level}, cost {cost}', { n: c.id.slice(1), level: c.level, cost: upgradeCost(state, 'checkout', c) }),
       });
     }
     for (const dept of state.departments) {
@@ -677,7 +708,7 @@ export function createUI({ callbacks }) {
         key: 'unlock-' + dept.id,
         cmd: { type: 'unlock', deptId: dept.id },
         pick: { kind: 'department', id: dept.id },
-        label: `Unlock ${dept.name} — cost ${dept.unlockCost}`,
+        label: T('Unlock {dept} — cost {cost}', { dept: deptName(dept.name), cost: dept.unlockCost }),
       });
     }
 
@@ -716,16 +747,23 @@ export function createUI({ callbacks }) {
   // ------------------------------------------------------------ transient
   function showCountdown(text) {
     els.countdown.hidden = false;
-    els.countdown.textContent = text;
+    els.countdown.textContent = T(text);
   }
   function hideCountdown() {
     els.countdown.hidden = true;
   }
 
+  let tutorialKey = null;
   function showTutorial(text) {
+    tutorialKey = text;
     if (text == null) { els.tutorialBanner.hidden = true; return; }
     els.tutorialBanner.hidden = false;
-    els.tutorialBanner.textContent = text;
+    els.tutorialBanner.textContent = T(text);
+  }
+  /** Language changed: re-render the live parts of the game screen in place. */
+  function relocalizeGame() {
+    if (tutorialKey != null) els.tutorialBanner.textContent = T(tutorialKey);
+    mirrorSignature = '';
   }
 
   function setDailyInfo(info) {
@@ -794,6 +832,8 @@ export function createUI({ callbacks }) {
     showCountdown,
     hideCountdown,
     showTutorial,
+    relocalizeGame,
+    labelAccount,
     setDailyInfo,
     humanizeReason,
     get currentScreen() { return currentScreen; },

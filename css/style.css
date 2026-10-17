@@ -6,6 +6,8 @@
   --bg: #fdf3e3;
   --bg-soft: #fbe7c6;
   --panel: #fffaf1;
+  --panel2: var(--panel); /* shared game-options.js controls */
+  --text: var(--ink);
   --ink: #3d2b1f;
   --ink-soft: #6f5b48;
   --accent: #e8743b;
@@ -442,6 +444,14 @@ html:not(.force-mirror) .board-mirror { /* compact summary only; full list is vi
   #settings-form .gfx-grid > .gfx-row,
   #settings-form .gfx-row:has(> select) { flex-direction: column; align-items: stretch; gap: 4px; }
   #settings-form .gfx-row select { max-width: 100%; width: 100%; }
+}
+/* Shared Language / Sound / Report rows (game-options.js) on phones: the label
+   sits above its control (like the Graphics rows) so long German labels such
+   as "Gesamtlautstärke" never break mid-word. Checkbox rows stay inline. */
+@media (max-width: 520px) {
+  #settings-form .game-options-row:not(:has(> input[type="checkbox"])) { grid-template-columns: minmax(0, 1fr) auto; row-gap: 2px; }
+  #settings-form .game-options-row:not(:has(> input[type="checkbox"])) > span:first-child { grid-column: 1 / -1; }
+  #settings-form .game-options-row > input[type="range"] { max-width: none; }
 }
 .gfx-summary { margin: 4px 0 0; font-size: 0.9rem; overflow-wrap: anywhere; }
 .gfx-note { margin: 0; font-size: 0.9rem; color: var(--warn); }

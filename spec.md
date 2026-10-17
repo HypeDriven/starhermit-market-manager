@@ -30,7 +30,10 @@ short, and spend the takings on staff, upgrades and new departments before closi
 | `src/ui.js` | DOM shell: screen switching, HUD, context/staff drawers, results table, help cards, the accessibility board mirror. |
 | `src/render.js` | Three.js scene: market geometry, customer figures, particles, camera framing, picking, colorblind palettes, and live graphics settings (`setGraphics`, `graphicsInfo`, post-processing chain, adaptive resolution). |
 | `src/gfx.js` | Pure graphics quality model: presets, categories, GPU detection (`detectPreset`, `gpuName`), `resolve`, `presetTier`, `choosePreset`, `describe`. No three.js. |
-| `src/gfx-panel.js` | Settings › Graphics controls, built into `#gfx-section` and localized for all nine shipped locales. |
+| `src/gfx-panel.js` | Settings › Graphics controls, built into `#gfx-section` and localized for all nine shipped locales; relabels in place when the game language changes. |
+| `src/i18n.js`, `src/locales/` | The game's string catalogue: `T(key, vars)` keyed by the US-English text, nine locale dictionaries (es-ES and fr-CA list only their differences from es-419 / fr-FR), `data-i18n` markup application and the language resolver. |
+| `sh-language.js` | Shared StarHermit language helper (unmodified copy): choice → account preference → browser → en-US. |
+| `game-options.js` | Shared Language, Sound and Report-a-problem sections (unmodified copy), mounted inside `#gfx-section`. |
 | `lib/addons/` | three r160 addons (post-processing passes, their shaders, `RoomEnvironment`), vendored from the same 0.160.1 release as `lib/three.module.min.js`; imported via the `three/addons/` import-map entry. |
 | `src/audio.js` | WebAudio: authored `.opus` one-shots with synthesised fallbacks, ambience bed, two-layer adaptive music. |
 | `starhermit-sdk.js` | Shared StarHermit client (unmodified copy). |
@@ -44,8 +47,9 @@ short, and spend the takings on staff, upgrades and new departments before closi
 | `assets/` | `title-backdrop.webp`, `results-banner.webp`. |
 | `tests/rules.test.mjs` | 75 assertions over the engine, content, session and progression. `npm test`. |
 | `tests/gfx.test.mjs` | `node --test` unit tests for the graphics model and panel locales. Part of `npm test`. |
-| `tests/platform.test.mjs` | `node --test` tests for the StarHermit adapter over the real SDK with a stubbed fetch (token, nickname, `game:<slug>` cloud save, settings KV, bindings, invite, zero fetches standalone). Part of `npm test`. |
-| `tests/e2e.mjs` | Playwright-core playthrough of the real UI at desktop and mobile. `npm run test:e2e`. |
+| `tests/platform.test.mjs` | `node --test` tests for the StarHermit adapter over the real SDK with a stubbed fetch (token, nickname, `game:<slug>` cloud save with ETag / 412 conditional writes, conflict merge, settings KV, bindings, invite, sign-in on a `<uuid>.starhermit.com` host, zero fetches standalone). Part of `npm test`. |
+| `tests/i18n.test.mjs`, `tests/i18n-keys.mjs` | Every player-facing key (collected from `T`/`N` calls, `data-i18n*` markup and the content tables) exists in all nine locales with the same placeholders; no stray keys; regional inheritance. Part of `npm test`. |
+| `tests/e2e.mjs`, `tests/starhermit-e2e.mjs` | Playwright-core playthrough of the real UI at desktop and mobile, plus the language / report steps against a stubbed StarHermit API. `npm run test:e2e`. |
 
 ## 2. Vision and design pillars
 
@@ -369,16 +373,28 @@ silently, and each event plays exactly one sound either way.
 
 ## 10. Localization
 
-The shipped languages are en-US, en-GB, es-419, es-ES, de-DE, fr-FR, fr-CA, pt-BR and it-IT. Today all UI
-copy is authored inline in English: static labels in `index.html`, dynamic strings in `src/ui.js`
-(`REASON_TEXT`, `MODES`, `HELP_RULES`, results and HUD formatting) and `src/main.js` (toasts, hints, tutorial
-prompts via `content.js`). `<html lang="en">` is fixed and there is no locale picker, so the other eight
-locales are design intent, not shipped behaviour (§17). Numbers and clocks are already formatted only at the
-presentation layer (`ticksToClock`, the results table), which is the seam a locale layer plugs into. Layout
-already tolerates ~40 % string expansion: panels wrap, buttons size to content with a 44 px minimum, and no
-label is positioned by a fixed pixel width. The one exception is Settings › Graphics: `src/gfx-panel.js` carries its
-strings for all nine locales and picks one from `navigator.languages` (exact match, then language fallback —
-es → es-419, fr → fr-FR, pt → pt-BR, en-AU/NZ/IE/IN/ZA → en-GB — else en-US), setting `lang` on the fieldset.
+The game ships in en-US, en-GB, es-419, es-ES, de-DE, fr-FR, fr-CA, pt-BR and it-IT. Every player-facing
+string — title, mode and stage lists, briefings, HUD, board mirror and action buttons, context and staff
+panels, toasts, refusal reasons, hints, lessons, results, help, settings, account lines and the compat
+notice — goes through `src/i18n.js`: `T(key, vars)` keyed by the US-English text, `N(key)` to mark table
+entries (stage, department, theme, achievement and lesson names in `content.js` stay English data and are
+translated at display time), and `data-i18n` / `data-i18n-aria` / `data-i18n-title` attributes on the static
+markup. es-ES and fr-CA list only their differences from es-419 and fr-FR; en-GB carries spelling changes
+(Colour, Neighbourhood, Harbour …).
+
+**Choosing the language.** `StarHermitLanguage.create` (`sh-language.js`) resolves the player's choice, then
+the StarHermit account's preferred language (`GET /api/v1/me/language`, signed in), then the browser, then
+en-US. The single selector is the shared **Language** section in Settings (inside `#gfx-section`): Automatic
+(showing the resolved language) or any of the nine; a choice is stored on the device and, signed in, saved to
+the account as `ui.language`. `?lang=<tag>` forces a locale for QA. The game's own settings mirror ignores
+`ui.*` keys.
+
+**Live switching.** Changing the language sets `<html lang>`, re-applies the markup, and re-renders the open
+screen in place — settings (the shared sections keep their nodes), lists, briefing, HUD, board mirror,
+context/staff panels, results and the Graphics controls — without restarting a shift; a shift paused for
+Settings resumes where it was. Numbers and clocks are formatted only at the presentation layer. Layout
+tolerates ~40 % expansion; on phones the shared Sound / Language / Report rows put the label above its control
+so long German labels never break mid-word.
 
 ## 11. Accessibility
 
@@ -440,8 +456,18 @@ score-chase run records to the local board. `server.js` is only a static host fo
   also record to the local board. Achievements stay local (part of the
   cloud-saved doc).
 
-Account strings (including the leaderboard line) are localized in the nine locales (`src/sh-strings.js`). Signed in, the only extra call
-is `GET /api/v1/time` (round-trip-adjusted offset for the UTC daily boundary). Not used: platform sessions,
+- **Save conflicts.** Cloud writes are conditional on the version last loaded. When another device saved
+  first (`saveconflict`), the game reloads the slot, merges it with the local copy — won flags and best
+  score per Journey stage and challenge, the better score per daily date, the union of lessons and
+  achievements, the larger lifetime counters and best streak, this device's current streak; local boards
+  are merged by session, best first — adopts the result locally (re-rendering the open screen) and saves it
+  back.
+- **Report a problem.** The shared section in Settings posts a bug report (`POST …/reports`) with a title and
+  optional details; it is shown only when signed in.
+- **Language.** See §10 (`GET /api/v1/me/language`, `ui.language` setting).
+
+Account strings (including the leaderboard line) are localized in the nine locales (`src/sh-strings.js`) and follow the game language. Signed in, the only extra calls
+are `GET /api/v1/time` (round-trip-adjusted offset for the UTC daily boundary). Not used: platform sessions,
 matchmaking, friend-picker invites, chat and replays — Market Manager is single-player; `score-script.js` reports
 only leaderboard scores (no achievements or replays) and `server.js` is a standalone Node host for local play.
 
@@ -462,7 +488,8 @@ plus a final hash.
 **Persistence.** `localStorage` under an `mm.` prefix, each document version-wrapped: `settings.v1`,
 `progress.v1`, `lastPlayed.v1`, `localBoards.v1`. Every read is try/caught and falls back to defaults, so
 corrupt or absent storage boots cleanly. Signed-in platform sessions additionally mirror `progress.v1` and
-`localBoards.v1` to the cloud slot (§12); the remote copy wins on conflict. Server state is a single JSON
+`localBoards.v1` to the cloud slot (§12); the remote copy wins on load, and a write that lost to another
+device is merged field by field (§12). Server state is a single JSON
 file under `.mm-data/` (override with `MM_DATA_DIR`), written atomically-ish and gitignored.
 
 **Loop.** A `requestAnimationFrame` accumulator in `main.js` steps the session at 500 ms with at most
@@ -486,13 +513,17 @@ transform updates plus particle integration.
 playwright-core, and clicks only visible DOM: help, settings (asserting the `high-contrast` class lands on
 `<html>`), Settings › Graphics (Low then High applied via `data-gfx-preset` and the summary, a Bloom override,
 render scale, show-frame-rate, surviving a reload, a preset clearing overrides), Play, the Journey card, the first stage card, Start, the canvas itself, hint, staff toggle, pause →
-settings → resume, Ultra then Low switched live mid-shift (canvas `data-gfx-preset`), then plays the shift to results through HUD and mirror buttons. It fails on any page error
+settings → resume, Ultra then Low switched live mid-shift (canvas `data-gfx-preset`), then plays the shift to results through HUD and mirror buttons. With a stubbed StarHermit API it then
+checks that Automatic follows the account language (fr-CA), that choosing Deutsch re-renders Settings in place
+and saves `ui.language`, that Report a problem posts a report, that the German settings do not overflow at
+390 px, and that switching to Italiano from the pause menu mid-shift re-renders the HUD and action buttons
+while the shift keeps ticking. It fails on any page error
 or non-allowlisted console error or warning.
 
 ## 14. Testing and acceptance criteria
 
 `npm test` runs `tests/rules.test.mjs` (75 assertions) and `tests/gfx.test.mjs` (GPU detection, preset
-resolution, overrides, render-scale clamping, preset-clears-overrides, locale coverage of the Graphics panel), and `tests/platform.test.mjs` (the StarHermit adapter over the real SDK).
+resolution, overrides, render-scale clamping, preset-clears-overrides, locale coverage of the Graphics panel), `tests/platform.test.mjs` (the StarHermit adapter over the real SDK, including the conflict merge) and `tests/i18n.test.mjs` (every key in all nine locales).
 The rules suite covers: map parsing and construction errors, serialization
 round-trips and version rejection, every `validateCommand` reason, restock/upgrade/unlock/hire economics, the
 customer lifecycle (browse, take, queue, serve, angry, empty), staff automation cadence, all three terminal
@@ -538,7 +569,6 @@ characters, so Kimodo has nothing to author for this game.
 
 ## 16. Known limitations
 
-- **UI copy is English only.** The nine required locales are declared but not implemented (§17).
 - **`voice` bus is reserved.** It has a slider and a gain node but no content routes to it.
 - **`timingAssist` and `holdToConfirm` are presentation-only toggles.** Wiring timing assist into the rules
   would change determinism and ranked replays, so it is deliberately inert.
@@ -553,11 +583,8 @@ characters, so Kimodo has nothing to author for this game.
 
 ## 17. Design intent not yet implemented
 
-1. **Localization.** A `src/i18n.js` string catalogue for en-US, en-GB, es-419, es-ES, de-DE, fr-FR, fr-CA,
-   pt-BR and it-IT, chosen from `navigator.languages` with a settings override, `<html lang>` updated on
-   change, and `data-i18n` keys on the static markup. Today every string is inline English.
-2. **Voice/announcer content** on the reserved `voice` bus (shift-start and last-minute callouts).
-3. **Timing assist** as an actual rules-level assist (widened patience) in unranked modes only.
+1. **Voice/announcer content** on the reserved `voice` bus (shift-start and last-minute callouts).
+2. **Timing assist** as an actual rules-level assist (widened patience) in unranked modes only.
 
 ## Browser interference
 

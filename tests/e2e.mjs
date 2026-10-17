@@ -20,6 +20,11 @@
  *   (serve queue > restock shelf) until the results screen, which is
  *   verified for its score breakdown. Pause → settings → resume is covered
  *   mid-round.
+ *   Then, against a stubbed StarHermit API (tests/starhermit-e2e.mjs):
+ *   Automatic language follows the account preference (fr-CA), Deutsch
+ *   re-renders settings in place and saves ui.language, Report a problem
+ *   posts a report, and switching to Italiano mid-shift re-renders the HUD
+ *   while the shift keeps running.
  *
  * Run: npm run test:e2e
  */
@@ -28,6 +33,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import url from 'node:url';
 import { chromium } from 'playwright-core';
+import { launchToken, stubStarHermit } from './starhermit-e2e.mjs';
 
 const ROOT = path.dirname(path.dirname(url.fileURLToPath(import.meta.url)));
 const MIME = {
@@ -142,9 +148,10 @@ async function runPass(browser, { name, viewport, hasTouch }) {
   const context = await browser.newContext({ viewport, hasTouch });
   const page = await context.newPage();
   const errors = [];
+  let stubbed = false; // the language steps answer /api/v1 from a page.route stub
   page.on('request', (r) => {
     const u = new URL(r.url());
-    if (u.port === String(runPass.port) && /^\/(api|ws)(\/|$)/.test(u.pathname)) errors.push(`own-server request: ${r.method()} ${u.pathname}`);
+    if (!stubbed && u.port === String(runPass.port) && /^\/(api|ws)(\/|$)/.test(u.pathname)) errors.push(`own-server request: ${r.method()} ${u.pathname}`);
   });
   page.on('websocket', (ws) => errors.push(`websocket opened: ${ws.url()}`));
   page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
@@ -355,6 +362,97 @@ async function runPass(browser, { name, viewport, hasTouch }) {
       await screenVisible(page, 'mode-select');
       await page.locator('[data-screen="mode-select"] [data-back]').click();
       await screenVisible(page, 'title');
+    });
+
+    await step('Language: Automatic follows the StarHermit preferred language (fr-CA); Deutsch re-renders and saves ui.language; report a problem', async () => {
+      const calls = await stubStarHermit(page, { preferredLanguage: 'fr-CA' });
+      stubbed = true;
+      await page.goto('about:blank');
+      await page.goto(`http://127.0.0.1:${runPass.port}/index.html#game_token=${launchToken()}`, { waitUntil: 'load' });
+      if (await page.locator('[data-screen="compat"]:not([hidden])').count()) await page.click('#btn-compat-continue');
+      await screenVisible(page, 'title');
+      await page.waitForFunction(() => document.documentElement.lang === 'fr-CA', null, { timeout: 8000 });
+      if ((await page.textContent('#btn-play')) !== 'Jouer') throw new Error('title not in fr-CA');
+      await page.click('#btn-settings-title');
+      await screenVisible(page, 'settings');
+      const choice = page.locator('#gfx-section [data-game-language="choice"]');
+      await choice.scrollIntoViewIfNeeded();
+      const auto = await choice.locator('option').first().textContent();
+      if (auto !== 'Automatique — Français (Canada)') throw new Error('Automatic label: ' + auto);
+      await page.evaluate(() => { window.__kept = document.querySelector('[data-game-language="choice"]'); });
+      await choice.selectOption('de-DE');
+      await page.waitForFunction(() => document.documentElement.lang === 'de-DE');
+      await page.waitForFunction(() => /Im Konto gespeichert/.test(document.querySelector('[data-game-language="status"]').textContent), null, { timeout: 5000 });
+      if (calls.settings['ui.language']?.choice !== 'de-DE') throw new Error('ui.language not saved: ' + JSON.stringify(calls.settings));
+      const de = await page.evaluate(() => ({
+        h: document.getElementById('settings-heading').textContent,
+        legend: document.querySelector('#gfx-section legend').textContent,
+        display: document.querySelector('#settings-form fieldset:nth-of-type(2) legend').textContent,
+        close: document.getElementById('btn-settings-close').textContent,
+        kept: window.__kept === document.querySelector('[data-game-language="choice"]'),
+      }));
+      if (de.h !== 'Einstellungen' || de.legend !== 'Grafik' || de.display !== 'Anzeige' || de.close !== 'Schließen' || !de.kept) {
+        throw new Error('settings not re-rendered in place: ' + JSON.stringify(de));
+      }
+      await page.locator('[data-game-report="title"]').scrollIntoViewIfNeeded();
+      await page.fill('[data-game-report="title"]', 'Language test report');
+      await page.click('[data-game-report="send"]');
+      await page.waitForFunction(() => /Danke/.test(document.querySelector('[data-game-report="status"]').textContent), null, { timeout: 5000 });
+      if (!calls.reports?.[0] || calls.reports[0].kind !== 'bug') throw new Error('report not posted');
+      if (await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1)) throw new Error('German settings overflow horizontally');
+      await page.screenshot({ path: `/tmp/market-manager-e2e-language-de-${name}.png`, fullPage: true });
+      await page.click('#btn-settings-close');
+      await screenVisible(page, 'title');
+      if ((await page.textContent('#btn-play')) !== 'Spielen') throw new Error('title not re-rendered in German');
+    });
+
+    await step('Language: switching to Italiano mid-shift re-renders the HUD and keeps the shift', async () => {
+      await page.click('#btn-modes');
+      await screenVisible(page, 'mode-select');
+      await page.locator('#mode-cards .card', { hasText: 'Reise' }).click();
+      await screenVisible(page, 'stage-select');
+      await page.locator('#stage-list .stage-card').first().click();
+      await screenVisible(page, 'setup');
+      if (!/6 bedienen/.test(await page.textContent('#setup-summary'))) throw new Error('briefing not German');
+      await page.click('#btn-start');
+      await screenVisible(page, 'game');
+      await page.waitForFunction(() => /Takt [1-9]/.test(document.getElementById('board-mirror').textContent), null, { timeout: 10000 });
+      await page.click('#btn-pause');
+      await screenVisible(page, 'pause');
+      const tickBefore = await page.evaluate(() => Number(document.getElementById('board-mirror').textContent.match(/(\d+)\//)[1]));
+      await page.click('#btn-pause-settings');
+      await screenVisible(page, 'settings');
+      const choice = page.locator('#gfx-section [data-game-language="choice"]');
+      await choice.scrollIntoViewIfNeeded();
+      await choice.selectOption('it-IT');
+      await page.waitForFunction(() => document.documentElement.lang === 'it-IT');
+      await page.click('#btn-settings-close');
+      await screenVisible(page, 'pause');
+      if ((await page.textContent('#btn-resume')) !== 'Riprendi') throw new Error('pause not in Italian');
+      await page.click('#btn-resume');
+      await screenVisible(page, 'game');
+      await page.waitForFunction((t) => {
+        const m = document.getElementById('board-mirror').textContent.match(/^Turno (\d+)\//);
+        return m && Number(m[1]) > t;
+      }, tickBefore, { timeout: 10000 });
+      const it = await page.evaluate(() => ({
+        coins: document.querySelector('.stat .stat-label').textContent,
+        actions: [...document.querySelectorAll('#mirror-list button')].map((b) => b.textContent).join(' | '),
+      }));
+      if (it.coins !== 'Monete' || /Restock|Serve checkout|Upgrade/.test(it.actions)) throw new Error('HUD not re-rendered: ' + JSON.stringify(it));
+      await page.screenshot({ path: `/tmp/market-manager-e2e-language-it-play-${name}.png` });
+      await page.click('#btn-pause');
+      await screenVisible(page, 'pause');
+      await page.click('#btn-quit');
+      await screenVisible(page, 'title');
+      await page.click('#btn-settings-title');
+      await screenVisible(page, 'settings');
+      await choice.scrollIntoViewIfNeeded();
+      await choice.selectOption('auto');
+      await page.waitForFunction(() => document.documentElement.lang === 'fr-CA');
+      await page.click('#btn-settings-close');
+      await screenVisible(page, 'title');
+      await page.unroute(/\/api\/v1\//);
     });
   } finally {
     await context.close();

@@ -118,6 +118,37 @@ export function loadProgress() {
   return { ...structuredClone(DEFAULT_PROGRESS), ...(loadKey('progress.v1') || {}) };
 }
 
+// Another device saved since this one last loaded the slot: keep the better
+// of each record — won flags and best scores per stage/challenge, the better
+// daily score per date, every lesson and achievement, the larger lifetime
+// counters — so neither side's progress is dropped.
+export function mergeProgress(remote, local) {
+  const obj = (v) => (v && typeof v === 'object' && !Array.isArray(v) ? v : {});
+  const a = { ...structuredClone(DEFAULT_PROGRESS), ...obj(remote) };
+  const b = { ...structuredClone(DEFAULT_PROGRESS), ...obj(local) };
+  const table = (x, y) => {
+    const out = { ...obj(x) };
+    for (const [id, rec] of Object.entries(obj(y))) {
+      const cur = out[id];
+      out[id] = cur ? { won: !!(cur.won || rec.won), best: Math.max(Number(cur.best) || 0, Number(rec.best) || 0) } : rec;
+    }
+    return out;
+  };
+  const daily = { ...obj(a.daily) };
+  for (const [d, rec] of Object.entries(obj(b.daily))) if (!daily[d] || (Number(rec.score) || 0) > (Number(daily[d].score) || 0)) daily[d] = rec;
+  return {
+    ...a, ...b,
+    journey: table(a.journey, b.journey),
+    challenges: table(a.challenges, b.challenges),
+    daily,
+    tutorialsDone: [...new Set([...(a.tutorialsDone || []), ...(b.tutorialsDone || [])])],
+    achievements: { ...obj(a.achievements), ...obj(b.achievements) },
+    guestsServedTotal: Math.max(Number(a.guestsServedTotal) || 0, Number(b.guestsServedTotal) || 0),
+    winStreak: Number(b.winStreak) || 0,
+    bestStreak: Math.max(Number(a.bestStreak) || 0, Number(b.bestStreak) || 0),
+  };
+}
+
 export function saveProgress(progress) {
   saveKey('progress.v1', progress);
 }
