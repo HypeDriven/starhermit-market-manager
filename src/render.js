@@ -190,6 +190,15 @@ function disposeObject(root) {
 // the authored material / instance colours instead of replacing them)
 // ---------------------------------------------------------------------------
 
+// Run a post pass at a fraction of the frame (per-preset budget). EffectComposer sizes every pass to the
+// full frame in addPass/setSize, so the pass's own setSize is wrapped to apply the scale.
+function atScale(pass, k) {
+  if (!(k > 0 && k < 1)) return pass;
+  const setSize = pass.setSize.bind(pass);
+  pass.setSize = (w, h) => setSize(Math.max(1, Math.round(w * k)), Math.max(1, Math.round(h * k)));
+  return pass;
+}
+
 function canvasTexture(size, draw, { repeat = 1, srgb = true } = {}) {
   const c = document.createElement('canvas');
   c.width = c.height = size;
@@ -211,10 +220,17 @@ function speckle(g, size, rnd, n, lo, hi, r = 1.5) {
   }
 }
 
-function makeTextures() {
+// Procedural textures at the preset budget's size factor `k` (each drawn in its 1× pixel units, so the
+// look is identical at every size).
+function scaled(base, k, draw) {
+  const size = Math.max(16, Math.round(base * k));
+  return (g, n, rnd) => { g.scale(size / base, size / base); draw(g, base, rnd); };
+}
+function makeTextures(k = 1) {
+  const sz = (base) => Math.max(16, Math.round(base * k));
   return {
     // Floor tile: soft bevel highlight top-left, grout shadow bottom-right, speckle.
-    tile: canvasTexture(128, (g, n, rnd) => {
+    tile: canvasTexture(sz(128), scaled(128, k, (g, n, rnd) => {
       g.fillStyle = '#f7f7f7'; g.fillRect(0, 0, n, n);
       speckle(g, n, rnd, 900, 225, 255);
       const grad = g.createLinearGradient(0, 0, n, n);
@@ -227,9 +243,9 @@ function makeTextures() {
       g.fillStyle = 'rgba(90,70,50,0.22)';
       g.fillRect(4, n - 7, n - 8, 3); g.fillRect(n - 7, 4, 3, n - 8);
       g.strokeStyle = '#b9ad9c'; g.lineWidth = 5; g.strokeRect(0, 0, n, n);
-    }),
+    })),
     // Grass: layered speckle and blades, tiled across the lawn.
-    grass: canvasTexture(256, (g, n, rnd) => {
+    grass: canvasTexture(sz(256), scaled(256, k, (g, n, rnd) => {
       g.fillStyle = '#eaeaea'; g.fillRect(0, 0, n, n);
       for (let i = 0; i < 90; i++) {
         const v = Math.round(205 + rnd() * 50);
@@ -242,18 +258,18 @@ function makeTextures() {
         g.strokeStyle = `rgb(${v},${v},${v})`;
         g.beginPath(); g.moveTo(x, y); g.lineTo(x + (rnd() - 0.5) * 3, y - 2 - rnd() * 4); g.stroke();
       }
-    }, { repeat: 1 }),
+    }), { repeat: 1 }),
     // Plaster wall with faint courses.
-    wall: canvasTexture(128, (g, n, rnd) => {
+    wall: canvasTexture(sz(128), scaled(128, k, (g, n, rnd) => {
       g.fillStyle = '#f2f2f2'; g.fillRect(0, 0, n, n);
       speckle(g, n, rnd, 1400, 215, 255, 2);
       g.fillStyle = 'rgba(80,60,40,0.12)';
       for (let y = 0; y < n; y += 32) g.fillRect(0, y, n, 2);
       g.fillStyle = 'rgba(255,255,255,0.6)';
       g.fillRect(0, 0, n, 4);
-    }),
+    })),
     // Wood planks for crates and shelf boards.
-    wood: canvasTexture(128, (g, n, rnd) => {
+    wood: canvasTexture(sz(128), scaled(128, k, (g, n, rnd) => {
       g.fillStyle = '#f0f0f0'; g.fillRect(0, 0, n, n);
       for (let y = 0; y < n; y += 2) {
         const v = Math.round(215 + Math.sin(y * 0.35 + rnd() * 2) * 18 + rnd() * 12);
@@ -262,15 +278,15 @@ function makeTextures() {
       }
       g.fillStyle = 'rgba(70,45,25,0.35)';
       for (let y = 0; y < n; y += 32) g.fillRect(0, y, n, 2);
-    }),
+    })),
     // Market awning stripes: full colour / deeper tone.
-    awning: canvasTexture(64, (g, n) => {
+    awning: canvasTexture(sz(64), scaled(64, k, (g, n) => {
       for (let x = 0; x < n; x += 16) {
         g.fillStyle = (x / 16) % 2 ? '#b8b8b8' : '#ffffff';
         g.fillRect(x, 0, 16, n);
       }
       g.fillStyle = 'rgba(0,0,0,0.12)'; g.fillRect(0, n - 6, n, 6);
-    }),
+    })),
     // Soft round sprite for particles and motes.
     dot: canvasTexture(64, (g, n) => {
       const grad = g.createRadialGradient(n / 2, n / 2, 0, n / 2, n / 2, n / 2);
@@ -304,6 +320,7 @@ export function createRenderer(container, opts = {}) {
   const options = {
     graphics: opts.graphics || { preset: legacyPreset(opts.quality) },
     detected: opts.detected || 'balanced',
+    level: Number.isFinite(opts.level) ? opts.level : undefined,
     gpu: opts.gpu || '',
     reducedMotion: !!opts.reducedMotion,
     colorblind: PALETTES[opts.colorblind] ? opts.colorblind : 'none',
@@ -353,12 +370,12 @@ export function createRenderer(container, opts = {}) {
   // Image-based lighting: a PMREM-filtered RoomEnvironment, generated lazily
   // the first time reflections are enabled.
   let envTexture = null;
-  const tex = makeTextures();
+  // Graphics state (see gfx.js): resolved tiers, post chain, adaptive scale.
+  let gq = resolveGraphics(options.graphics, options.detected, options.level);
+  let tex = makeTextures(gq.budget.textures);
   let skyTex = null;
   const skyColor = new THREE.Color(0xffffff);
 
-  // Graphics state (see gfx.js): resolved tiers, post chain, adaptive scale.
-  let gq = resolveGraphics(options.graphics, options.detected);
   let gfxJson = '';
   let composer = null;
   let postKey = null;
@@ -411,16 +428,22 @@ export function createRenderer(container, opts = {}) {
   const highlightMarkers = [];
   let highlightTargets = null;
 
-  // shared geometries (never disposed during market rebuilds)
+  // shared geometries (never disposed during market rebuilds); the round ones follow the preset's
+  // geometry LOD (budget `segments`) and are rebuilt with the market when it changes.
+  const seg = (n, min = 3) => Math.max(min, Math.round(n * gq.budget.segments));
   const boxGeo = new THREE.BoxGeometry(1, 1, 1);
-  const ringGeo = new THREE.RingGeometry(0.3, 0.42, 32);
-  const discGeo = new THREE.CircleGeometry(0.42, 24);
-  const bodyGeo = new THREE.CapsuleGeometry(DIM.personR, DIM.personH, 4, 10);
-  const headGeo = new THREE.SphereGeometry(DIM.headR, 10, 8);
   const goodGeo = new THREE.BoxGeometry(0.16, 0.16, 0.16);
-  for (const g of [boxGeo, ringGeo, discGeo, bodyGeo, headGeo, goodGeo]) {
-    g.userData.shared = true;
+  let ringGeo, discGeo, bodyGeo, headGeo;
+  function buildRoundGeometry() {
+    for (const g of [ringGeo, discGeo, bodyGeo, headGeo]) if (g) g.dispose();
+    ringGeo = new THREE.RingGeometry(0.3, 0.42, seg(32, 12));
+    discGeo = new THREE.CircleGeometry(0.42, seg(24, 10));
+    bodyGeo = new THREE.CapsuleGeometry(DIM.personR, DIM.personH, seg(4, 2), seg(10, 6));
+    headGeo = new THREE.SphereGeometry(DIM.headR, seg(10, 6), seg(8, 5));
+    for (const g of [ringGeo, discGeo, bodyGeo, headGeo]) g.userData.shared = true;
   }
+  buildRoundGeometry();
+  for (const g of [boxGeo, goodGeo]) g.userData.shared = true;
 
   hoverMarker = makeRingMarker(0xffffff);
   fxGroup.add(hoverMarker);
@@ -447,16 +470,23 @@ export function createRenderer(container, opts = {}) {
     return { wx: x - (grid.w - 1) / 2, wz: y - (grid.h - 1) / 2 };
   }
 
+  // Material class per preset budget: Lambert (Low), Standard (Balanced), Physical for the clearcoated
+  // pieces (High/Ultra).
+  function lambert(params) {
+    const { roughness, metalness, envMapIntensity, clearcoatRoughness, clearcoat, ...rest } = params;
+    return new THREE.MeshLambertMaterial(rest);
+  }
+
   function std(color, extra = {}) {
-    return new THREE.MeshStandardMaterial({
-      color, roughness: 0.85, metalness: 0.0, envMapIntensity: LOOK.envIntensity, ...extra,
-    });
+    const params = { color, roughness: 0.85, metalness: 0.0, envMapIntensity: LOOK.envIntensity, ...extra };
+    return gq.budget.material === 'lambert' ? lambert(params) : new THREE.MeshStandardMaterial(params);
   }
 
   function phys(color, extra = {}) {
-    return new THREE.MeshPhysicalMaterial({
-      color, roughness: 0.5, metalness: 0.0, envMapIntensity: LOOK.envIntensity, clearcoatRoughness: 0.25, ...extra,
-    });
+    const params = { color, roughness: 0.5, metalness: 0.0, envMapIntensity: LOOK.envIntensity, ...extra };
+    if (gq.budget.material === 'lambert') return lambert(params);
+    if (gq.budget.material === 'standard') return new THREE.MeshStandardMaterial(params);
+    return new THREE.MeshPhysicalMaterial({ clearcoatRoughness: 0.25, ...params });
   }
 
   // `detail` category: surface texture and clearcoat are attached to the
@@ -515,8 +545,10 @@ export function createRenderer(container, opts = {}) {
     setHighlight(null);
   }
 
+  let lastConfig = null;
   function buildMarket(state, config, themeObj) {
     if (!state || !state.grid) return;
+    lastConfig = config;
     clearMarket();
     theme = themeObj || theme;
     grid = { w: state.grid.w, h: state.grid.h };
@@ -869,9 +901,10 @@ export function createRenderer(container, opts = {}) {
     const potMat = withDetail(phys(0xb56a4a, { roughness: 0.6 }), null, 0.4);
     const leafMat = std(0x4e8f4e, { roughness: 0.8 });
     const leafMat2 = std(0x62a85a, { roughness: 0.8 });
-    const leafGeo = new THREE.ConeGeometry(0.18, 0.34, 7);
-    const topGeo = new THREE.ConeGeometry(0.13, 0.26, 7);
-    for (let i = 0; i < LOOK.propCount; i++) {
+    const leafGeo = new THREE.ConeGeometry(0.18, 0.34, seg(7, 5));
+    const topGeo = new THREE.ConeGeometry(0.13, 0.26, seg(7, 5));
+    const count = Math.round(LOOK.propCount * gq.budget.props); // preset budget `props`
+    for (let i = 0; i < count; i++) {
       const group = new THREE.Group();
       const pot = new THREE.Mesh(boxGeo, potMat);
       pot.scale.set(0.22, 0.18, 0.22);
@@ -922,7 +955,7 @@ export function createRenderer(container, opts = {}) {
       color: patienceColor(1), transparent: true, opacity: 0.9,
       side: THREE.DoubleSide, depthWrite: false,
     });
-    const ring = new THREE.Mesh(new THREE.RingGeometry(0.16, 0.24, 24), ringMat);
+    const ring = new THREE.Mesh(new THREE.RingGeometry(0.16, 0.24, seg(24, 10)), ringMat);
     ring.rotation.x = -Math.PI / 2;
     ring.position.y = FX.ringY;
     ring.visible = false;
@@ -1095,7 +1128,7 @@ export function createRenderer(container, opts = {}) {
   }
 
   // -- pooled particle system -------------------------------------------------
-  const PMAX = FX.maxParticles;
+  const PMAX = FX.maxParticles * 3; // budget sparks ≤ 1.5 × level scaling ≤ 2
   const pGeo = new THREE.BufferGeometry();
   const pPos = new Float32Array(PMAX * 3).fill(-999);
   const pCol = new Float32Array(PMAX * 3);
@@ -1119,7 +1152,7 @@ export function createRenderer(container, opts = {}) {
 
   // Ambient motes: slow warm specks drifting up through the market light
   // (particles: high; frozen away under reduced motion).
-  const MOTES = LOOK.motes;
+  const MOTES = LOOK.motes * 2; // pool; the preset budget's `motes` are drawn
   const mGeo = new THREE.BufferGeometry();
   const mPos = new Float32Array(MOTES * 3);
   const mSeed = [];
@@ -1140,7 +1173,9 @@ export function createRenderer(container, opts = {}) {
     motes.visible = gq.particles === 'high' && !options.reducedMotion && grid.w > 0;
     if (!motes.visible) return;
     const hw = grid.w / 2, hh = grid.h / 2;
-    for (let i = 0; i < MOTES; i++) {
+    const n = Math.min(MOTES, gq.budget.motes);
+    mGeo.setDrawRange(0, n);
+    for (let i = 0; i < n; i++) {
       const [a, b, c, d] = mSeed[i];
       const t = elapsed * (0.05 + c * 0.06) + d;
       const y = (t % 1) * 1.6 + 0.1;
@@ -1164,10 +1199,13 @@ export function createRenderer(container, opts = {}) {
   }
 
   function spawnBurst(fx) {
-    const cap = PARTICLE_CAP[gq.particles] || PARTICLE_CAP.low;
+    // Burst counts and the cap × the preset budget's sparks factor.
+    const k = gq.budget.sparks;
+    const cap = Math.min(PMAX, Math.round((PARTICLE_CAP[gq.particles] || PARTICLE_CAP.low) * k));
     if (options.reducedMotion || pActive >= cap) return;
     const rand = Math.random;
     const emit = (count, colorFn, speed, up, ttl) => {
+      count = Math.max(1, Math.round(count * k));
       for (let i = 0; i < count && pActive < cap; i++) {
         const a = rand() * Math.PI * 2;
         const s = speed * (0.4 + rand() * 0.6);
@@ -1326,7 +1364,20 @@ export function createRenderer(container, opts = {}) {
     gfxJson = json;
     options.graphics = saved || {};
     const prev = gq;
-    gq = resolveGraphics(options.graphics, options.detected);
+    gq = resolveGraphics(options.graphics, options.detected, options.level);
+    // Asset variants: textures, round geometry, material class and props follow the preset budget.
+    const pb = (prev && prev.budget) || {}, b = gq.budget;
+    if (pb.textures !== b.textures) {
+      for (const k of ['tile', 'grass', 'wall', 'wood', 'awning']) tex[k].dispose();
+      tex = { ...makeTextures(b.textures), dot: tex.dot };
+    }
+    if (pb.segments !== b.segments) {
+      buildRoundGeometry();
+      for (const m of [hoverMarker, ...highlightMarkers]) if (m) m.geometry = ringGeo;
+    }
+    if (built && lastState && (pb.textures !== b.textures || pb.segments !== b.segments || pb.material !== b.material || pb.props !== b.props)) {
+      buildMarket(lastState, lastConfig, theme);
+    }
 
     // shadows
     const size = SHADOW_MAP[gq.shadows];
@@ -1408,6 +1459,7 @@ export function createRenderer(container, opts = {}) {
     }
     return {
       gpu: options.gpu || '',
+      level: gq.level,
       detected: options.detected,
       resolved: { ...gq },
       pixels: px,
@@ -1470,7 +1522,7 @@ export function createRenderer(container, opts = {}) {
       c.addPass(new RenderPass(scene, camera));
       if (gq.ao !== 'off') {
         const high = gq.ao === 'high';
-        const ao = new GTAOPass(scene, camera, pw, ph);
+        const ao = atScale(new GTAOPass(scene, camera, pw, ph), gq.budget.aoRes);
         tuneGtao(ao);
         ao.output = GTAOPass.OUTPUT.Default;
         ao.blendIntensity = 0.85;
@@ -1480,7 +1532,7 @@ export function createRenderer(container, opts = {}) {
       }
       if (gq.bloom === 'on') {
         const b = LOOK.bloom;
-        c.addPass(new UnrealBloomPass(new THREE.Vector2(pw, ph), b.strength, b.radius, b.threshold));
+        c.addPass(atScale(new UnrealBloomPass(new THREE.Vector2(pw, ph), b.strength, b.radius, b.threshold), gq.budget.bloomRes));
       }
       if (gq.grade === 'on') c.addPass(new ShaderPass(GradeShader));
       c.addPass(new OutputPass());

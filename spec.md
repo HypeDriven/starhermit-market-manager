@@ -29,7 +29,9 @@ short, and spend the takings on staff, upgrades and new departments before closi
 | `src/session.js` | Session object (command log, hash chain, undo, replay envelope, snapshot/resume), settings, progression, achievements. |
 | `src/ui.js` | DOM shell: screen switching, HUD, context/staff drawers, results table, help cards, the accessibility board mirror. |
 | `src/render.js` | Three.js scene: market geometry, customer figures, particles, camera framing, picking, colorblind palettes, and live graphics settings (`setGraphics`, `graphicsInfo`, post-processing chain, adaptive resolution). |
-| `src/gfx.js` | Pure graphics quality model: presets, categories, GPU detection (`detectPreset`, `gpuName`), `resolve`, `presetTier`, `choosePreset`, `describe`. No three.js. |
+| `src/gfx.js` | Pure graphics quality model: presets, categories, per-preset budgets (`BUDGETS`, `budget`), hardware level → preset (`LEVELS`, `detectLevel`, `presetForLevel`, `detectPreset`), `gpuName`, `resolve`, `presetTier`, `choosePreset`, `describe`. No three.js. |
+| `src/gpu-level.js` | Shared StarHermit hardware-level detector (`window.StarHermitGpu`; copy of the canonical tools file, not edited here). |
+| `tests/gfx-bench.mjs` | Dev-only hook for `tools/gfx-bench.mjs` (60 FPS per-preset benchmark on real GPUs). |
 | `src/gfx-panel.js` | Settings › Graphics controls, built into `#gfx-section` and localized for all nine shipped locales; relabels in place when the game language changes. |
 | `src/i18n.js`, `src/locales/` | The game's string catalogue: `T(key, vars)` keyed by the US-English text, nine locale dictionaries (es-ES and fr-CA list only their differences from es-419 / fr-FR), `data-i18n` markup application and the language resolver. |
 | `sh-language.js` | Shared StarHermit language helper (unmodified copy): choice → account preference → browser → en-US. |
@@ -316,20 +318,54 @@ PCF soft shadows fall where the camera can see them; the shadow box is fitted to
 Output is ACES filmic tone-mapped sRGB. Optional effects: image-based lighting from a PMREM-filtered
 `RoomEnvironment` (subtle reflections; the hemisphere fill drops while it is on), procedural surface detail
 (canvas-drawn tile bevels and grout, grass, plaster courses, wood planks, striped awnings, a sky-to-haze backdrop
-gradient, clearcoat on goods, counters, planters and guests, and decorative planters outside the walls), GTAO
+gradient, clearcoat on goods, counters, planters and guests on High/Ultra, and decorative planters outside the walls), GTAO
 contact shadows, bloom limited to highlights (threshold 0.92; particles and highlight rings are pushed above 1.0
 so coins, confetti and target rings glow), a colour grade (gentle S-curve, saturation, warm highlights/cool
 shadows) with vignette, FXAA/SMAA/MSAA, and ambient warm motes drifting over the floor. Waiting guests and staff
 bob gently. With surface detail on, the title backdrop gets a slow sunbeam sheen. Settings › **Graphics** offers
-Quality (Auto (detected: tier) — chosen from the WebGL unmasked renderer string: software renderers get Low,
-discrete GPUs and Apple M-series High, the rest Balanced, capped at Balanced on touch devices — or Low, Balanced,
-High, Ultra), Render scale (50–200 %), one "From preset (…)" select per category (Shadows off/low/medium/high,
+Quality (Auto (detected: tier) — chosen from the StarHermit hardware level below — or Low, Balanced, High,
+Ultra), Render scale (50–200 %), one "From preset (…)" select per category (Shadows off/low/medium/high,
 Ambient occlusion off/on/high, Bloom, Colour grade, Anti-aliasing off/FXAA/SMAA/MSAA, Reflections, Surface detail
 plain/detailed, Particles low/high), Adaptive resolution (on by default) and Show frame rate (a bottom-left
-readout, input-transparent), plus a summary line "GPU · cost · W×H px" and a note if post-processing is
+readout, input-transparent), plus a summary line "GPU · Level N · cost · W×H px" (the level label localized) and a note if post-processing is
 unavailable. Choosing a preset clears the per-category overrides. Changes apply live and persist in
 `mm.settings.v1` as `settings.graphics` (older saves' `quality` is migrated). The chosen preset is mirrored to
 `data-gfx-preset` on `<html>` and on the canvas.
+
+**Hardware level and Auto.** `src/gpu-level.js` (the shared StarHermit detector, `window.StarHermitGpu`, loaded
+as a classic script before `src/main.js`) rates the GPU 0–20 (0 = Galaxy S20 / Intel UHD or weaker, 20 = RTX
+5090, each level ≈ 1.23× the one below; laptop parts two levels lower; phones, tablets and ≤ 4 GB machines capped
+at 9; software renderers and browsers without WebGL 0). Auto picks **Low from 0, Balanced from 4, High from 10,
+Ultra from 17**, so strong desktop GPUs get Ultra; adaptive resolution still steps down when frames are slow. On
+phones and tablets the shared frame-rate option paces Auto at half the display refresh rate and starts at 16
+simultaneous sounds.
+
+**Per-preset budgets** (`BUDGETS` in `src/gfx.js`; each tuned to hold 60 FPS on the weakest GPU Auto gives it —
+Low: level 0 phones / Intel UHD, Balanced: level 4 Iris Xe, High: level 10 GTX 1070, Ultra: level 17 RTX 4080).
+Gameplay is identical on every preset.
+
+| Preset | Materials | Surface textures (tile / grass / plaster / wood / awning) | Geometry LOD (people, rings, discs, planters) | Planters | Motes | Sparks (× bursts and cap) | Bloom / GTAO resolution |
+|---|---|---|---|---|---|---|---|
+| Low | Lambert | ½ (64 / 128 / 64 / 64 / 32 px) | ½ | 5 | 35 | 0.5× | ½ / ½ |
+| Balanced | Standard | 1× (128 / 256 / 128 / 128 / 64 px) | ¾ | 8 | 50 | 0.75× | ½ / ½ |
+| High | Physical clearcoat on arch, counters, goods, pots, guests | 1× | 1 | 10 | 70 | 1× | ½ / ½ |
+| Ultra | Physical clearcoat on arch, counters, goods, pots, guests | 2× (256 / 512 / 256 / 256 / 128 px) | 1.5 | 15 | 120 | 1.5× | full / full |
+
+Sparks scale within the preset by the hardware level (`StarHermitGpu.scaleBudget`, ≤ 2×; fewer below the
+floor). Textures and round geometry are regenerated, and a live market rebuilt from its current state, when the
+preset's budget changes. Bloom and GTAO run at a fraction of the frame through a wrapped pass `setSize`.
+
+**60 FPS benchmark** (`node tools/gfx-bench.mjs market-manager [--mobile --presets low,balanced]`, dev-only,
+real GPUs; hook `tests/gfx-bench.mjs` picks the preset in Settings › Graphics, starts Journey stage 1 and lets
+the shift run while using the visible Hint button and canvas picking, retrying a finished shift). Measured
+2026-10-17 (an AMD Radeon iGPU at level 2 projected to each preset's floor level, the same page with draws
+skipped subtracted; typical p50 ≤ 12 ms and slow p90 ≤ 14 ms, CPU p90 ≤ 6 ms on the NVIDIA run):
+
+- Desktop 1920×1080: PASS low (typical 0.14, slow 0.00 ms at level 0; CPU 0.70 ms); PASS balanced (typical
+  3.59, slow 2.77 ms at level 4; CPU 1.10 ms); PASS high (typical 1.68, slow 1.25 ms at level 10; CPU 2.60 ms);
+  PASS ultra (typical 4.22, slow 4.70 ms at level 17; CPU 2.00 ms).
+- Mobile 390×844 @3×: PASS low (typical 0.00, slow 0.05 ms at level 0; CPU 0.60 ms); PASS balanced (typical
+  0.00, slow 0.00 ms at level 4; CPU 0.90 ms).
 
 **Visual assets the design calls for:** a title/menu backdrop that shows the fantasy before the player commits
 (shipped), a results illustration that reads as "shift over" (shipped), a 16:9 cover for the platform grid
@@ -497,7 +533,7 @@ file under `.mm-data/` (override with `MM_DATA_DIR`), written atomically-ish and
 "while you were away". Five consecutive loop errors stop the loop rather than spinning.
 
 **Performance budgets.** Presets (`src/gfx.js`): Low — pixel-ratio cap 1, no shadows, no post chain, no
-reflections, plain surfaces, 300 particles (as cheap as the original Low); Balanced — cap 1.5, 1024² shadows,
+reflections, plain surfaces, Lambert materials, 300 × 0.5 particles; Balanced — cap 1.5, 1024² shadows,
 bloom, grade, FXAA, reflections, detail; High — cap 2, 2048² shadows, GTAO, SMAA; Ultra — 4096² shadows, full
 GTAO, MSAA and 1.25× render scale. Pixel ratio = min(device ratio, cap) × render scale × adaptive scale; adaptive
 resolution averages 90 frames and steps down 0.1 (to 0.6) above 26 ms or back up 0.05 below 14 ms. The
@@ -506,12 +542,12 @@ MSAA for the MSAA option) is built only when some effect needs it and rebuilt wh
 changes; if it throws, the scene renders directly and the Graphics panel says so, without console output. The
 canvas context itself never uses MSAA. GTAO is adjusted for the orthographic camera (r160 mistypes its
 `PERSPECTIVE_CAMERA` define and assumes a perspective eye) and reconstructs normals from depth. Scene rebuilds
-only happen on stage load; detail and effect changes toggle maps/defines on existing materials; per-tick work is
+happen on stage load and when the preset's asset budget changes; detail and effect changes toggle maps/defines on existing materials; per-tick work is
 transform updates plus particle integration.
 
 **How the e2e drives the real UI.** `tests/e2e.mjs` boots its own static server, launches Chrome via
 playwright-core, and clicks only visible DOM: help, settings (asserting the `high-contrast` class lands on
-`<html>`), Settings › Graphics (Low then High applied via `data-gfx-preset` and the summary, a Bloom override,
+`<html>`), Settings › Graphics (Auto detecting Low with the summary naming Level 0 on the software GPU, Low then High applied via `data-gfx-preset` and the summary, a Bloom override,
 render scale, show-frame-rate, surviving a reload, a preset clearing overrides), Play, the Journey card, the first stage card, Start, the canvas itself, hint, staff toggle, pause →
 settings → resume, Ultra then Low switched live mid-shift (canvas `data-gfx-preset`), then plays the shift to results through HUD and mirror buttons. With a stubbed StarHermit API it then
 checks that Automatic follows the account language (fr-CA), that choosing Deutsch re-renders Settings in place
@@ -522,8 +558,9 @@ or non-allowlisted console error or warning.
 
 ## 14. Testing and acceptance criteria
 
-`npm test` runs `tests/rules.test.mjs` (75 assertions) and `tests/gfx.test.mjs` (GPU detection, preset
-resolution, overrides, render-scale clamping, preset-clears-overrides, locale coverage of the Graphics panel), `tests/platform.test.mjs` (the StarHermit adapter over the real SDK, including the conflict merge) and `tests/i18n.test.mjs` (every key in all nine locales).
+`npm test` runs `tests/rules.test.mjs` (75 assertions) and `tests/gfx.test.mjs` (hardware level → preset: SwiftShader / llvmpipe / no WebGL / `Radeon Graphics` / UHD →
+Low, Iris Xe → Balanced, GTX 1070 → High, RTX 4080 / 5090 → Ultra, phones and tablets Balanced at most; the
+per-preset budget table and its level scaling; preset resolution, overrides, render-scale clamping, preset-clears-overrides, locale coverage of the Graphics panel), `tests/platform.test.mjs` (the StarHermit adapter over the real SDK, including the conflict merge) and `tests/i18n.test.mjs` (every key in all nine locales).
 The rules suite covers: map parsing and construction errors, serialization
 round-trips and version rejection, every `validateCommand` reason, restock/upgrade/unlock/hire economics, the
 customer lifecycle (browse, take, queue, serve, angry, empty), staff automation cadence, all three terminal

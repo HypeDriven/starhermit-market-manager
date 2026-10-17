@@ -215,6 +215,9 @@ async function runPass(browser, { name, viewport, hasTouch }) {
       // Auto shows the detected tier; headless software GL resolves to Low.
       const autoLabel = await page.textContent('#set-quality option[value="auto"]');
       if (!/Auto \(detected: \w+\)/.test(autoLabel)) throw new Error('auto label: ' + autoLabel);
+      // The summary names the StarHermit hardware level (software GPU = level 0, so Auto is Low).
+      if (!/Low/.test(autoLabel)) throw new Error('Auto should detect Low on a software GPU: ' + autoLabel);
+      if (!/Level 0/.test((await gfxState()).summary)) throw new Error('summary lacks the hardware level: ' + (await gfxState()).summary);
       await page.selectOption('#set-quality', 'low');
       let st = await gfxState();
       if (st.preset !== 'low' || !/no shadows/.test(st.summary)) throw new Error('Low not applied: ' + JSON.stringify(st));

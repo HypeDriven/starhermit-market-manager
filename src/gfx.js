@@ -1,5 +1,5 @@
 // Market Manager — graphics quality model: presets, per-category overrides,
-// GPU detection and a cost summary. Pure (no three.js, no DOM), so the
+// hardware-level detection, per-preset budgets and a cost summary. Pure (no three.js, no DOM), so the
 // settings panel, the renderer and the unit tests agree on what a setting means.
 
 export const PRESETS = ['low', 'balanced', 'high', 'ultra'];
@@ -28,25 +28,71 @@ const TABLE = {
 export const SHADOW_MAP = { off: 0, low: 1024, medium: 2048, high: 4096 };
 export const PARTICLE_CAP = { low: 300, high: 2000 };
 
-/**
- * Best preset for this GPU, from the WEBGL_debug_renderer_info unmasked
- * renderer string when the browser exposes it. Touch/mobile devices are
- * capped at Balanced.
+// StarHermit hardware level (0–20, src/gpu-level.js → window.StarHermitGpu) at which Auto starts choosing
+// each preset. 0 = Galaxy S20 / Intel UHD or weaker, 20 = RTX 5090; phones, tablets and ≤ 4 GB machines
+// are capped at level 9 (Balanced); software renderers are level 0 (Low).
+export const LEVELS = { low: 0, balanced: 4, high: 10, ultra: 17 };
+
+/*
+ * Per-preset asset and effect budgets, each tuned to hold 60 FPS on the weakest GPU Auto gives the preset
+ * (Low: level 0 phones / Intel UHD; Balanced: level 4 Iris Xe; High: level 10 GTX 1070; Ultra: level 17
+ * RTX 4080; measured with tests/gfx-bench.mjs). Gameplay is identical on every preset.
+ *   material  market surfaces, fixtures, goods and people: 'lambert' (Low) | 'standard' (Balanced) |
+ *             'physical' (clearcoated arch, counters, goods, pots and clothing with detail on; High/Ultra)
+ *   textures  multiplies the procedural tile / grass / plaster / wood / awning texture sizes
+ *             (128 / 256 / 128 / 128 / 64 px at 1)
+ *   segments  geometry LOD: multiplies the people (capsule, head), rings, contact discs and planter cones
+ *   props     multiplies the decorative planters outside the walls (detail on)
+ *   motes     ambient floating motes (particles high)
+ *   sparks    multiplies coin / pop / puff / confetti burst counts and the particle cap, then scaled by
+ *             the hardware level within the preset (≤ 2×)
+ *   bloomRes / aoRes  bloom and GTAO resolution as a fraction of the frame
  */
-export function detectPreset(gpu, mobile = false) {
-  const g = String(gpu || '').toLowerCase();
-  let p = 'balanced';
-  if (/swiftshader|llvmpipe|softpipe|software|basic render|microsoft basic/.test(g)) p = 'low';
-  else if (/nvidia|geforce|rtx|gtx|quadro|radeon rx|radeon pro|amd radeon(?!.*graphics)|apple m\d/.test(g)) p = 'high';
-  if (mobile && PRESETS.indexOf(p) > PRESETS.indexOf('balanced')) p = 'balanced';
-  return p;
+export const BUDGETS = {
+  low: { material: 'lambert', textures: 0.5, segments: 0.5, props: 0.5, motes: 35, sparks: 0.5, bloomRes: 0.5, aoRes: 0.5 },
+  balanced: { material: 'standard', textures: 1, segments: 0.75, props: 0.75, motes: 50, sparks: 0.75, bloomRes: 0.5, aoRes: 0.5 },
+  high: { material: 'physical', textures: 1, segments: 1, props: 1, motes: 70, sparks: 1, bloomRes: 0.5, aoRes: 0.5 },
+  ultra: { material: 'physical', textures: 2, segments: 1.5, props: 1.5, motes: 120, sparks: 1.5, bloomRes: 1, aoRes: 1 },
+};
+
+const gpuApi = () => globalThis.StarHermitGpu;
+
+/** Hardware level 0–20 for an unmasked renderer string plus StarHermitGpu.detectSystem() facts. */
+export function detectLevel(gpu, system = {}) {
+  const G = gpuApi();
+  if (!G) return LEVELS.balanced;
+  return G.detectLevel({ webgl: true, webgl2: true, ...system, gpu: String(gpu || '') });
+}
+
+/** Auto preset for a hardware level: Low 0, Balanced 4, High 10, Ultra 17. */
+export function presetForLevel(level) {
+  const G = gpuApi();
+  if (G) return G.presetForLevel(level, LEVELS);
+  return PRESETS.filter((p) => LEVELS[p] <= level).pop() || 'low';
+}
+
+/**
+ * Best preset for this GPU; phones and tablets are capped at Balanced by the hardware level.
+ * `system` is a StarHermitGpu.detectSystem() result (or `true` for a touch/mobile device).
+ */
+export function detectPreset(gpu, system = {}) {
+  return presetForLevel(detectLevel(gpu, typeof system === 'boolean' ? { mobile: system } : system || {}));
+}
+
+/** A preset's concrete budget for a hardware level (sparks scale within the preset, ≤ 2×). */
+export function budget(preset, level) {
+  const b = { ...(BUDGETS[preset] || BUDGETS.balanced) };
+  const G = gpuApi(), floor = LEVELS[preset] ?? 0;
+  const k = G ? Math.min(2, G.scaleBudget(1, Number.isFinite(level) ? level : floor, floor)) : 1;
+  b.sparks = Math.round(b.sparks * k * 100) / 100;
+  return b;
 }
 
 /**
  * Resolve saved settings into concrete tiers.
  * `saved`: { preset: 'auto'|preset, render_scale, adaptive, show_fps, <category>: 'preset'|tier }.
  */
-export function resolve(saved, detected) {
+export function resolve(saved, detected, level) {
   const s = saved || {};
   const auto = !PRESETS.includes(s.preset);
   const preset = auto ? (PRESETS.includes(detected) ? detected : 'balanced') : s.preset;
@@ -61,6 +107,8 @@ export function resolve(saved, detected) {
   for (const [cat, tiers] of Object.entries(CATEGORIES)) {
     out[cat] = tiers.includes(s[cat]) ? s[cat] : row[cat];
   }
+  out.level = Number.isFinite(level) ? level : LEVELS[preset];
+  out.budget = budget(preset, out.level);
   out.adaptive = s.adaptive !== false;
   out.showFps = !!s.show_fps;
   // The post chain runs only when something needs it (MSAA is done on the

@@ -6,7 +6,7 @@
 import { PRESETS, CATEGORIES, presetTier, choosePreset } from './gfx.js';
 
 const EN = {
-  legend: 'Graphics', quality: 'Quality', auto: 'Auto (detected: {tier})',
+  legend: 'Graphics', quality: 'Quality', level: 'Level {level}', auto: 'Auto (detected: {tier})',
   low: 'Low', balanced: 'Balanced', high: 'High', ultra: 'Ultra', medium: 'Medium',
   renderScale: 'Render scale', fromPreset: 'From preset ({tier})',
   shadows: 'Shadows', ao: 'Ambient occlusion', bloom: 'Bloom', grade: 'Color grade',
@@ -20,7 +20,7 @@ const EN = {
 };
 
 const ES = {
-  legend: 'Gráficos', quality: 'Calidad', auto: 'Automática (detectada: {tier})',
+  legend: 'Gráficos', quality: 'Calidad', level: 'Nivel {level}', auto: 'Automática (detectada: {tier})',
   low: 'Baja', balanced: 'Equilibrada', high: 'Alta', ultra: 'Ultra', medium: 'Media',
   renderScale: 'Escala de renderizado', fromPreset: 'Según el preajuste ({tier})',
   shadows: 'Sombras', ao: 'Oclusión ambiental', bloom: 'Resplandor', grade: 'Corrección de color',
@@ -34,7 +34,7 @@ const ES = {
 };
 
 const FR = {
-  legend: 'Graphismes', quality: 'Qualité', auto: 'Auto (détectée : {tier})',
+  legend: 'Graphismes', quality: 'Qualité', level: 'Niveau {level}', auto: 'Auto (détectée : {tier})',
   low: 'Basse', balanced: 'Équilibrée', high: 'Haute', ultra: 'Ultra', medium: 'Moyenne',
   renderScale: 'Échelle de rendu', fromPreset: 'Selon le préréglage ({tier})',
   shadows: 'Ombres', ao: 'Occlusion ambiante', bloom: 'Flou lumineux', grade: 'Étalonnage des couleurs',
@@ -57,7 +57,7 @@ export const STRINGS = {
     noWebgl: 'La vista 3D está desactivada en este navegador; estos ajustes se aplicarán cuando esté disponible.',
   },
   'de-DE': {
-    legend: 'Grafik', quality: 'Qualität', auto: 'Automatisch (erkannt: {tier})',
+    legend: 'Grafik', quality: 'Qualität', level: 'Stufe {level}', auto: 'Automatisch (erkannt: {tier})',
     low: 'Niedrig', balanced: 'Ausgewogen', high: 'Hoch', ultra: 'Ultra', medium: 'Mittel',
     renderScale: 'Renderskalierung', fromPreset: 'Wie Voreinstellung ({tier})',
     shadows: 'Schatten', ao: 'Umgebungsverdeckung', bloom: 'Bloom', grade: 'Farbkorrektur',
@@ -75,7 +75,7 @@ export const STRINGS = {
     words: { ...FR.words, bloom: 'halo lumineux' },
   },
   'pt-BR': {
-    legend: 'Gráficos', quality: 'Qualidade', auto: 'Automática (detectada: {tier})',
+    legend: 'Gráficos', quality: 'Qualidade', level: 'Nível {level}', auto: 'Automática (detectada: {tier})',
     low: 'Baixa', balanced: 'Equilibrada', high: 'Alta', ultra: 'Ultra', medium: 'Média',
     renderScale: 'Escala de renderização', fromPreset: 'Da predefinição ({tier})',
     shadows: 'Sombras', ao: 'Oclusão de ambiente', bloom: 'Brilho', grade: 'Correção de cor',
@@ -88,7 +88,7 @@ export const STRINGS = {
     words: { shadows: 'sombras', noShadows: 'sem sombras', ao: 'AO', fullAo: 'AO completa', bloom: 'brilho', reflections: 'reflexos', noAa: 'sem suavização' },
   },
   'it-IT': {
-    legend: 'Grafica', quality: 'Qualità', auto: 'Automatica (rilevata: {tier})',
+    legend: 'Grafica', quality: 'Qualità', level: 'Livello {level}', auto: 'Automatica (rilevata: {tier})',
     low: 'Bassa', balanced: 'Bilanciata', high: 'Alta', ultra: 'Ultra', medium: 'Media',
     renderScale: 'Scala di rendering', fromPreset: 'Dal preset ({tier})',
     shadows: 'Ombre', ao: 'Occlusione ambientale', bloom: 'Bagliore', grade: 'Correzione colore',
@@ -224,7 +224,7 @@ export function createGraphicsPanel(root, { getSaved, onChange, getInfo, locale 
     }
     adaptive.checked = r.adaptive;
     showFps.checked = r.showFps;
-    summary.textContent = `${info.gpu || L.unknownGpu} · ${info.summary}`;
+    summary.textContent = `${info.gpu || L.unknownGpu} · ${(L.level || EN.level).replace('{level}', info.level ?? 0)} · ${info.summary}`;
     note.hidden = !(info.postFailed || info.webgl === false);
     note.textContent = info.webgl === false ? L.noWebgl : L.postNote;
     root.dataset.gfxPreset = r.preset;

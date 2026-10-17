@@ -17,7 +17,7 @@ import { createUI, humanizeReason } from './ui.js';
 import { createAudio } from './audio.js';
 import { createPlatform } from './platform.js';
 import {
-  detectPreset, resolve as resolveGraphics, describe as describeGraphics, legacyPreset, gpuName,
+  detectLevel, presetForLevel, resolve as resolveGraphics, describe as describeGraphics, legacyPreset, gpuName,
 } from './gfx.js';
 import { createGraphicsPanel } from './gfx-panel.js';
 import { shStrings } from './sh-strings.js';
@@ -83,9 +83,13 @@ function boot() {
   let rendererPromise = null;
   let gpu = '';
   let webgl = detectWebGL();
-  // Graphics: Auto picks a preset from the GPU (touch devices cap at Balanced).
+  // Graphics: Auto picks a preset from the StarHermit hardware level (SwiftShader = level 0 → Low;
+  // phones and tablets cap at Balanced).
   const mobile = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
-  const detectedPreset = detectPreset(gpu, mobile);
+  const gpuApi = globalThis.StarHermitGpu;
+  const gpuSystem = gpuApi ? gpuApi.detectSystem() : {};
+  const gpuLevel = detectLevel(gpu, { ...gpuSystem, webgl, mobile: !!gpuSystem.mobile || mobile });
+  const detectedPreset = presetForLevel(gpuLevel);
   if (!settings.graphics || typeof settings.graphics !== 'object') {
     settings.graphics = { preset: legacyPreset(settings.quality) };
   }
@@ -361,7 +365,7 @@ function boot() {
     settings.graphics = { ...(saved || {}) };
     delete settings.quality; // superseded by settings.graphics.preset
     persistSettings();
-    const r = resolveGraphics(settings.graphics, detectedPreset);
+    const r = resolveGraphics(settings.graphics, detectedPreset, gpuLevel);
     const root = document.documentElement;
     root.dataset.gfxPreset = r.preset;
     root.dataset.gfxDetail = r.detail;
@@ -376,10 +380,10 @@ function boot() {
 
   function graphicsInfo(words) {
     if (renderer) return { ...renderer.graphicsInfo(words), webgl };
-    const r = resolveGraphics(settings.graphics, detectedPreset);
+    const r = resolveGraphics(settings.graphics, detectedPreset, gpuLevel);
     const ratio = Math.min(window.devicePixelRatio || 1, r.maxRatio) * r.scale;
     const px = [Math.round(window.innerWidth * ratio), Math.round(window.innerHeight * ratio)];
-    return { gpu, detected: detectedPreset, resolved: r, summary: describeGraphics(r, px, words), postFailed: false, webgl };
+    return { gpu, level: gpuLevel, detected: detectedPreset, resolved: r, summary: describeGraphics(r, px, words), postFailed: false, webgl };
   }
 
   // ----------------------------------------------------------- renderer
@@ -391,6 +395,7 @@ function boot() {
         renderer = createRenderer(document.getElementById('scene-host'), {
           graphics: settings.graphics,
           detected: detectedPreset,
+          level: gpuLevel,
           gpu,
           reducedMotion: motionReduced(),
           colorblind: settings.colorblind || 'none',
