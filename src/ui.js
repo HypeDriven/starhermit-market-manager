@@ -109,6 +109,23 @@ export function createUI({ callbacks }) {
   let lastConfig = null;
   let mirrorSignature = '';
   let focusMemory = new Map();
+  // A press on the context or staff panel holds their per-tick rebuild until
+  // it is released: a click only fires when press and release land on the
+  // same element, and the panels are rebuilt on every tick.
+  let panelPressed = false;
+  let panelStale = false;
+  document.addEventListener('pointerdown', (ev) => {
+    const t = ev.target;
+    if (t && t.closest && t.closest('#context-panel, #staff-panel')) panelPressed = true;
+  }, true);
+  for (const name of ['pointerup', 'pointercancel']) {
+    document.addEventListener(name, () => {
+      if (!panelPressed) return;
+      panelPressed = false;
+      // The click follows this release in the same task; catch up after it.
+      setTimeout(() => { if (panelStale) refreshPanels(); }, 0);
+    }, true);
+  }
 
   // ---------------------------------------------------------------- helpers
   function el(tag, attrs = {}, ...children) {
@@ -350,8 +367,14 @@ export function createUI({ callbacks }) {
     els.btnUndo.hidden = !session.allowUndo;
     els.btnUndo.disabled = !(extras.undoEnabled ?? session.canUndo());
     els.btnHint.disabled = !(extras.hintEnabled ?? true);
-    if (lastPick) showContextPanel(lastPick, state, config);
-    if (!els.staffPanel.hidden) showStaffPanel(state);
+    refreshPanels();
+  }
+
+  function refreshPanels() {
+    if (panelPressed) { panelStale = true; return; }
+    panelStale = false;
+    if (lastPick) showContextPanel(lastPick, lastState, lastConfig);
+    if (!els.staffPanel.hidden) showStaffPanel(lastState);
   }
 
   // ------------------------------------------------------- context panel

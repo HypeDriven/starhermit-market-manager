@@ -437,7 +437,8 @@ so long German labels never break mid-word.
 - **Keyboard-only path is complete.** `#mirror-list` holds a button for every legal action — restock, serve,
   hire, upgrade, unlock — with the same labels and costs as the pointer path. Arrow keys/WASD cycle it,
   Enter/Space confirms. Focus survives the per-tick rebuild because panels are re-keyed by command, not
-  replaced wholesale.
+  replaced wholesale. The context and staff panels are never rebuilt while a pointer is pressed on them:
+  the rebuild waits for the release, so a click always lands on the button it was pressed on.
 - **Focus management:** each screen change focuses its `tabindex="-1"` heading; overlays restore the previous
   screen; a skip link jumps to `#app`.
 - **Announcements:** `#live-announcer` (polite) carries objective and hint text, `#live-alerts` (assertive)
