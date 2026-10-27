@@ -1,6 +1,6 @@
 # Market Manager — Architecture
 
-StarHermit engine script game (engine 1.18.0, host API 1.20, `engine.minor=20`):
+StarHermit engine script game (engine 1.19.1, host API 1.21, `engine.minor=20`):
 `native/*.ts` on the engine's modules (`starhermit:scene`, `ui`, `audio`,
 `storage`, `platform`) over the pure ES modules in `src/`, which the engine
 imports unchanged (`allowJs`) and node tests run directly.
