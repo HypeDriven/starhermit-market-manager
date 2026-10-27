@@ -713,8 +713,9 @@ function gameScreen(L: Layout): void {
   view.top = sa.top + hudBottom * L.sc;
   if (!live) return;
   marketTargets(st);
-  drawers(L, hudBottom);
+  // The drawers over the board summary (index.html: .drawer z-index 15 over #board-mirror).
   boardMirror(L);
+  drawers(L, hudBottom);
 }
 
 /** The market's shelves, checkouts and covered departments named for screen readers and play scripts. */
