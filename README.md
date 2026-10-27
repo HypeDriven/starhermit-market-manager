@@ -1,50 +1,49 @@
 # Market Manager
 
-A bright isometric neighborhood market management game for the browser.
-Stock displays, serve queues, hire staff, and unlock new departments through
-earned revenue.
+A bright isometric neighborhood market management game on the StarHermit
+engine. Stock displays, serve queues, hire staff, and unlock new departments
+through earned revenue.
+
+It is a StarHermit engine script game (engine 1.18.0, host API 1.20): one
+package played natively by the StarHermit client and in browsers by the
+engine's web runtime (`index.html` is the engine's loader).
 
 ## Run
 
-Any static file server works. The included server adds daily seeds,
-replay-validated leaderboards, and heartbeats:
-
 ```
-node server.js 8080     # then open http://localhost:8080
+STARHERMIT=~/sh/runtime/1.18.0/starhermit-1.18.0-linux-x86_64/starhermit
+$STARHERMIT .            # play in a window
+npm run package          # after every change: the web loader + file index
 ```
-
-The game also runs fully offline from a plain static server (practice,
-journey, tutorials, and a local daily all work without the API).
 
 ## Test
 
 ```
-npm test            # rules suite + graphics-model unit tests
-npm run test:e2e    # headless Chrome playthrough (desktop + mobile)
+npm test                 # rules, save document and i18n suites, then the native checks and play scripts
+npm run test:browser     # plays Journey stage 1 in Chrome (desktop, phone, landscape)
 ```
 
-Covers every legal action and invalid-action reason, scoring components,
-terminal states, serialization round-trips, deterministic replay
-(property-style: same version + seed + commands → identical state hashes),
-command fuzzing, move limits, daily determinism, and offline validation of
-all 40 journey stages, 4 tutorials, 5 challenges, 3 practice difficulties,
-and sample dailies (each proven winnable by a greedy auto-player).
+The rules suite covers every legal action and invalid-action reason, scoring
+components, terminal states, serialization round-trips, deterministic replay,
+command fuzzing, move limits, daily determinism, and offline validation of all
+40 journey stages, 4 tutorials, 5 challenges, 3 practice difficulties, and
+sample dailies (each proven winnable by a greedy auto-player).
 
 ## Layout
 
-- `index.html`, `css/` — semantic UI shell (works without WebGL for help/settings)
-- `src/rng.js` — seeded RNG, stable hashing
-- `src/rules.js` — pure deterministic rules engine (no DOM)
-- `src/content.js` — versioned stages, themes, tutorials, daily ruleset, validators
-- `src/session.js` — sessions, undo, replay envelopes, persistence, achievements
-- `src/render.js` — Three.js isometric market (vendored three r160 in `lib/`)
-- `src/ui.js`, `src/audio.js`, `src/platform.js`, `src/main.js` — DOM UI, WebAudio synth, optional backend adapter, bootstrap
-- `server.js` — authoritative script (daily seeds, score validation, leaderboards)
-- `ARCHITECTURE.md` — module contracts
+- `native/` — the engine client (TypeScript): screens and HUD (`screens.ts`),
+  the market scene (`render.ts`), sound, platform and save, graphics tiers
+- `src/rng.js`, `src/rules.js`, `src/content.js`, `src/session.js` — the
+  seeded RNG, the pure deterministic rules engine, versioned content and
+  sessions (undo, replay envelopes, progress, achievements)
+- `src/store.js` — the save document; `src/i18n.js`, `src/locales/` — nine locales
+- `score-script.js` — the platform script that posts leaderboard scores
+- `server.js` — optional Node host with the legacy daily/score routes (not used by the client)
+- `spec.md` — the running design spec; `ARCHITECTURE.md` — module contracts
 
 ## Modes
 
 Learn (4 interactive lessons) · Journey (40 authored stages with mastery
 gates) · Daily (one shared UTC seed) · Practice (3 difficulties, undo) ·
-Challenge (move limits, speed, altered layouts) · Score chase (replay-validated
-boards, friends/local filtering).
+Challenge (move limits, speed, altered layouts) · Score chase (local and
+platform boards).

@@ -1,9 +1,9 @@
 # Market Manager — Architecture
 
-Browser game. Vanilla ES modules, no build step. Three.js is vendored at
-`lib/three.module.min.js` (import via the `three` import map entry defined in
-`index.html`). Everything must run from a static file server and offline after
-first load.
+StarHermit engine script game (engine 1.18.0, host API 1.20, `engine.minor=20`):
+`native/*.ts` on the engine's modules (`starhermit:scene`, `ui`, `audio`,
+`storage`, `platform`) over the pure ES modules in `src/`, which the engine
+imports unchanged (`allowJs`) and node tests run directly.
 
 ## Module map
 
@@ -11,12 +11,12 @@ first load.
 - `src/rules.js` — pure deterministic rules engine. DONE. Never import DOM/three here.
 - `src/content.js` — versioned stages, themes, tutorials, daily, validators, `autoPlay`. DONE.
 - `src/session.js` — sessions, undo, replay envelopes, persistence, settings, progress, achievements. DONE.
-- `src/render.js` — Three.js scene. Contract below.
-- `src/ui.js` — DOM shell: screens, HUD, panels, accessibility. Owned by UI implementation.
-- `src/audio.js` — WebAudio synth SFX + adaptive music, volume buses. Owned by UI implementation.
-- `src/platform.js` — StarHermit adapter: launch-token auth + refresh, profile nickname, cloud-save mirror,
-  read-only platform leaderboards; local boards. Contract below.
-- `src/main.js` — bootstrap + glue. Owns the game loop.
+- `src/store.js` — the save document (normalize, two-device merge, the old cloud slot, the key store session.js uses, local boards). Pure.
+- `native/main.ts` — entry: screen state machine, the fixed-step 500 ms tick, commands, picks, tutorials, hints, results, input.
+- `native/screens.ts` — every screen and the HUD on `starhermit:ui`.
+- `native/render.ts` — the market on `starhermit:scene`. Contract below.
+- `native/audio.ts` — one-shots, rendered music layers and ambience.
+- `native/platform.ts` — the save on `starhermit:storage`, migration, legacy settings, player, clock, leaderboard.
 - `server.js` — optional Node authoritative script (daily seeds, score validation, leaderboards).
 - `tests/rules.test.mjs` — `node tests/rules.test.mjs` must stay green.
 
@@ -74,77 +74,30 @@ Store helpers: `loadSettings()/saveSettings(s)` (see `DEFAULT_SETTINGS`),
 `loadProgress()/saveProgress(p)`, `recordResult(progress, session)` → newly unlocked achievements,
 `ACHIEVEMENTS`. `TICK_MS` re-exported (500ms per tick).
 
-## Render contract (src/render.js)
+## Render contract (native/render.ts)
 
-Single export:
+Module-level scene (the runtime draws `scene` each frame through `renderer.camera`):
 
-```js
-import { createRenderer } from './render.js';
-const renderer = createRenderer(containerEl, opts);
-```
+- `applyLook(look)` — the graphics tier's look (native/quality.ts); rebuilds a live market when the asset budget changes.
+- `buildMarket(state, config, theme)`, `syncState(state, events)`, `clear()`.
+- `setHighlight(targets)` — `null` or `[{kind, id}]` pulsing rings.
+- `setTheme`, `setColorblind`, `setCamera`, `resetCamera`, `setReducedMotion`, `setPaused`, `setActive(on)`.
+- `update(dt, width, height, topInset, bottomInset, scale)` — each frame: framing between the HUD bands (setViewOffset), springs, motion, effects.
+- Input: `pointerDown/Move/Up/Cancel/Leave`, `wheel`, `pickAt(x, y)` → `{kind, id?, x?, y?}`, `targetRects()` (named areas for ui.target).
 
-`opts`: `{ quality: 'low'|'medium'|'high', reducedMotion: boolean, colorblind: string,
-camera: 'isometric'|'high'|'low', onPick: (pick|null) => void, onHover: (pick|null) => void }`.
+## Platform contract (native/platform.ts)
 
-`pick` = `{ kind: 'display'|'checkout'|'department'|'floor', id?, x, y }`
-(department picks use the department `id`; floor picks carry tile coords).
-
-Methods:
-
-- `buildMarket(state, config, theme)` — full (re)build from a snapshot + stage config + theme object.
-- `syncState(state, events)` — reconcile views to the latest snapshot; `events` are the
-  events emitted since last sync (may be `[]`). Must be cheap; called up to once per animation frame.
-- `setHighlight(targets)` — `null` to clear, else `[{kind:'display'|'checkout'|'department', id}]`
-  to mark legal targets (outline + grounded marker, not bloom alone).
-- `setQuality(q)`, `setReducedMotion(b)`, `setColorblind(mode)`, `setTheme(theme)`,
-  `setCamera(mode)`, `resetCamera()`
-- `setPaused(b)` — freeze decorative motion (simulation visuals derive from state, not wall time).
-- `start()`, `stop()` — own requestAnimationFrame loop; must render 0 frames while stopped/hidden.
-- `resize()`
-- `getDrawStats()` → `{calls, triangles}`
-- `dispose()` — explicit disposal of geometries/materials/renderer.
-
-Requirements: orthographic isometric-authored camera (exposed framing constants, no magic
-offsets); PBR lighting with one key light + soft fill + tone mapping (ACES); procedural
-low-poly geometry (no external assets); department displays as shelved goods whose fill
-matches `stock/capacity`; customers as small walkers following `path`/`x,y` with queued
-customers standing at `queueSlot` positions; patience shown as a shrinking ring/bar;
-selected/legal targets readable without post effects; instancing for repeated props;
-layered so particles never intercept raycasts; raycast only against explicit interactive
-meshes; pointer tap vs drag thresholds; visual seed derived from `config.seed` for
-decoration so replays look identical; draw calls ≤ 150 desktop / ≤ 90 mobile at default tier.
-Fall back gracefully (return `null` from a `tryCreateRenderer`-style guard is NOT needed —
-main.js checks WebGL support before calling).
-
-## Platform contract (src/platform.js ↔ server.js / StarHermit platform)
-
-Same-origin, optional. All calls must time out fast and fall back to local behavior
-(offline play is fully supported). Hosted mode activates iff a launch token was read
-from the URL fragment (`#game_token=`); the token rides as `Authorization: Bearer` on
-every call and is re-minted via `POST /api/v1/games/{slug}/launch-token` every 45 min.
-
-Hosted platform routes (read-only leaderboards; no client score submission):
-
-- `GET /api/v1/users/{userId}/profile` → `{id, username, nickname}` — display nickname only
-- `GET /api/v1/games/{slug}` → `{leaderboardId, ...}`
-- `GET /api/v1/leaderboards/{leaderboardId}/entries?pageSize=` → ranked entries (resolve userIds to nicknames)
-- `GET`/`PUT /api/v1/me/cloud-saves/{slug}` → stored-zip + base64 save doc; remote wins on conflict
-- Rate limit: HTTP 429 with `{ error }` — treat as recoverable.
-
-Legacy own-server routes in server.js (no longer called by the client, standalone or hosted; signed-in play reads only `GET /api/v1/time` from the platform):
-
-- `GET /api/v1/time` → `{ now: <unix ms> }` (round-trip adjusted offset for daily boundary)
-- `GET /api/v1/daily` → `{ date: 'YYYY-MM-DD', seed: <uint32>, excluded: false }`
-- `POST /api/v1/scores` — body: replay envelope from `session.replayEnvelope()` → `{ ok, rank? }` or `{ error }`
-- `GET /api/v1/leaderboard?board=<daily|global>&date=<iso>` → `{ entries: [{name, score, date, durationMs}] }`
-- `POST /api/v1/heartbeat` → `{ ok: true }` (throttled, only while actively playing)
-
-Tokens are never persisted to storage — only held in memory for the session. Guest mode
-needs none of this; localStorage is always the offline cache.
+The save (`saves`) is `{ v: 1, progress, boards, settings, lastPlayed }`; the old
+JS-SDK cloud slot (`{ v, savedAt, progress, boards }`) is foreign and migrates
+once. Conflicts merge with `store.mergeDocs`. Legacy settings-KV keys are carried
+over (theme, camera, colorblind, leftHanded, haptics, tutorialsDone) and removed.
+Signed in, ranked runs post `{ type: 'result', scores: { 'high-score': total } }`
+through a practice session to `score-script.js`. The Daily's UTC day uses
+`serverNow()` when known.
 
 ## State model
 
 `boot → title → mode-select → setup → countdown → active ↔ paused → results → progression`.
-Backgrounding the tab pauses the solo simulation (fixed-timestep accumulator stops);
+Suspending the game (a hidden window) pauses the shift (the fixed-step tick stops);
 on return show a brief "while you were away" note. Closing a drawer or overlay must never
 touch simulation state.
