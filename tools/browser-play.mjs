@@ -77,13 +77,6 @@ for (const v of views) {
   /** A button of the UI (or a named area of the market) by its accessible name: clicked, or tapped on touch views. */
   const press = async (name, { exact = true, timeout = 15000 } = {}) => {
     const el = page.getByRole('button', { name, exact }).first();
-    // A button scrolled out of a panel is not in the mirror: wheel the panel down until it is.
-    for (let i = 0; i < 6 && !(await el.count()); i++) {
-      await page.waitForTimeout(Math.min(timeout, 1500));
-      if (await el.count()) break;
-      await page.mouse.move(v.viewport.width / 2, v.viewport.height / 2);
-      await page.mouse.wheel(0, 250);
-    }
     await el.waitFor({ state: 'attached', timeout });
     if (v.hasTouch) await el.tap({ force: true, timeout }); else await el.click({ force: true, timeout });
     await page.waitForTimeout(400);
@@ -92,12 +85,16 @@ for (const v of views) {
   let done = false;
   try {
     await shot('title');
-    await press('All modes');
+    // Play opens the mode list for a new player (as All modes does); on the short landscape panel All modes is below the fold.
+    await press('Play');
     await press('Journey');
     await shot('stages');
     await press('First Shift');
     await shot('setup');
-    await press('Start shift');
+    // The briefing focuses Start shift (below the fold on the landscape panel): Enter starts.
+    await page.waitForTimeout(800);
+    await page.keyboard.press('Enter');
+    await page.waitForTimeout(400);
     await page.waitForTimeout(3500);
     await shot('play');
     if (!v.hasTouch) {
