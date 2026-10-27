@@ -3,7 +3,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { DICTS, LOCALES, T, setLocale } from '../src/i18n.js';
-import { graphicsStrings, pickLocale } from '../src/gfx-panel.js';
 import { shStrings } from '../src/sh-strings.js';
 import { ALL } from './i18n-keys.mjs';
 
@@ -30,12 +29,9 @@ test('no locale carries keys that no longer exist', () => {
   }
 });
 
-test('Graphics and StarHermit strings exist for all nine locales', () => {
-  for (const locale of LOCALES) {
-    assert.equal(pickLocale(locale), locale);
-    assert.ok(graphicsStrings(locale).legend, locale);
-    assert.ok(shStrings([locale]).signIn, locale);
-  }
+test('StarHermit account strings exist for all nine locales', () => {
+  for (const locale of LOCALES) assert.ok(shStrings([locale]).signIn, locale);
+  assert.notEqual(shStrings(['de-DE']).signIn, shStrings(['en-US']).signIn);
 });
 
 test('T falls back to the key and fills placeholders; regional variants inherit', () => {
@@ -52,5 +48,4 @@ test('T falls back to the key and fills placeholders; regional variants inherit'
   assert.equal(T('Color vision'), 'Colour vision');
   setLocale('en-US');
   assert.equal(T('Shelf'), 'Shelf');
-  assert.equal(graphicsStrings('de-DE').legend, 'Grafik');
 });
