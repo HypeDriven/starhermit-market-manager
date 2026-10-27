@@ -1,0 +1,96 @@
+# The title and its doors on a desktop: How to play, Settings (the camera
+# changed), all modes, the Journey stages, Lessons, the Daily briefing; a
+# Practice shift with the action list by the arrow keys, a hint, a shelf's
+# actions drawer, undo, the staff drawer, pause, Settings from the pause
+# menu, and ending the shift.
+# viewport 1280x720@1
+until 300 All modes
+frames 120
+save title
+click =How to play
+until 60 Restock shelves
+frames 10
+save help
+click =Close
+until 60 All modes
+frames 10
+click =Settings
+until 60 Color vision
+frames 10
+save settings
+click =Close
+until 60 All modes
+frames 10
+click =Daily market
+until 60 Daily Market
+frames 10
+save daily-setup
+click =Back
+until 60 All modes
+frames 10
+click =All modes
+until 60 Choose a mode
+frames 10
+save modes
+click =Learn
+until 60 Lessons
+frames 10
+save lessons
+click =Back
+until 60 Choose a mode
+frames 10
+click =Practice
+until 60 Practice pace
+frames 10
+click Practice — Relaxed
+until 60 Start shift
+frames 10
+save practice-setup
+click =Start shift
+until 300 Checkout 1
+frames 120
+save practice
+key ArrowDown 1
+frames 10
+expect Upgrade Rise & Crumb Bakery shelf 1
+save action-list
+key ArrowDown 1
+frames 10
+key Enter 1
+frames 10
+expect 60 coins
+key Escape 1
+until 60 Resume
+frames 10
+click =Resume
+until 60 Checkout 1
+frames 10
+key KeyH 1
+frames 10
+click =Rise & Crumb Bakery — shelf 1
+until 60 Stock 4/4
+frames 10
+save shelf-drawer
+click =Restock (cost 0)
+frames 10
+click =Undo last action
+until 60 Undone
+frames 10
+click =Toggle staff panel
+until 60 Hire stocker
+frames 10
+save staff
+click =Pause game
+until 60 Resume
+frames 10
+save paused
+click =Settings
+until 60 Color vision
+frames 10
+click =Close
+until 60 Resume
+frames 10
+click =End shift
+until 60 All modes
+frames 10
+save back-title

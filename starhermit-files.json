@@ -2,7 +2,7 @@
   "files": {
     "assets/results-banner.webp": {"sha256": "ad2f2ebc1054e333e09e492d84a7b1c776d69b6925d51d96380c47bfdc102308", "size": 29910},
     "assets/title-backdrop.webp": {"sha256": "571ac02109176a5109d69e792741d770bb00c4db633d85d28ee32dfc092bb3ec", "size": 74012},
-    "assets/ui-style.json": {"sha256": "dc21e30dfc5eb300aa1a04cbdbf2b84877398bf3b59a35d9b6f9155334991094", "size": 16844},
+    "assets/ui-style.json": {"sha256": "0e25c58cb5a874c31783635cbf0604fafd5e80e6329fa4bfbf9d833693fcda7e", "size": 16975},
     "cover.jpg": {"sha256": "18800d34756020254df7ead0c63cad29a66658b966ecb6809219205f21114a12", "size": 430985},
     "icon.png": {"sha256": "384c144ca32117b6c20636b6a9cc3cacf267695d65b73b42ede58e15629e83e3", "size": 5342},
     "index.html": {"sha256": "1d46a65ffa6c9c0efc8c73798b4f6ae78f5cf976d0cbe396c1a21edcb626dfdf", "size": 1764},
@@ -13,7 +13,7 @@
     "native/platform.ts": {"sha256": "128144d82006f65de799bc52d53d7d0790b8c75de23a9d13538fc261b5648dc9", "size": 10229},
     "native/quality.ts": {"sha256": "eae61943ccd6802a7bde65d3714b8a1c695a11fd5206b2bafb19e1cdc8adc234", "size": 4040},
     "native/render.ts": {"sha256": "94ef1115ccd7e6f938612b4b09f00698450292e2e3a15e710dadd36d54bad17b", "size": 67648},
-    "native/screens.ts": {"sha256": "f32a55eb78dfe7fb5d60d3640a05872efbb2c4532cc945ec1736643947f9221d", "size": 53976},
+    "native/screens.ts": {"sha256": "0d9c2ad0fb8d97ab428944b383bcb8d8bcb26ac527d5d6959415d5d7b2104bce", "size": 54047},
     "native/style.ts": {"sha256": "7abed5c5dba29cae37717bce41f67ec38025d4072018c8e21f9c2aae157ee42d", "size": 2779},
     "score-script.js": {"sha256": "762eda4323fbe38bb29abf1117ec1d637253e288024f9aa8fcb5735b81ef2902", "size": 2488},
     "sfx/achievement.opus": {"sha256": "d2360590a6aa05628fad6c01831e8b235c49405691736e417eae5e76926e0013", "size": 24020},

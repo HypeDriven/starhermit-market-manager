@@ -1,0 +1,39 @@
+# Lesson 1 on a phone (390 x 844): the tutorial banner, the HUD buttons in
+# the bottom bar, the staff drawer, guests served by tapping the market,
+# to the results.
+# viewport 390x844@1
+until 300 All modes
+frames 10
+click =All modes
+until 60 Choose a mode
+frames 10
+click =Learn
+until 60 Lessons
+frames 10
+click Lesson 1: Stock the Shelves
+until 60 Start shift
+frames 10
+click =Start shift
+until 300 Checkout 1
+frames 30
+save lesson
+click =Toggle staff panel
+until 60 Hire stocker
+frames 10
+save staff-drawer
+click =Toggle staff panel
+frames 10
+repeat 6000 until Shift complete
+  click =Checkout 1
+  frames 10
+  click =Rise & Crumb Bakery — shelf 1
+  frames 10
+  click =Rise & Crumb Bakery — shelf 2
+  frames 10
+  click =Rise & Crumb Bakery — shelf 3
+  frames 10
+  click =Rise & Crumb Bakery — shelf 4
+  frames 10
+end
+frames 60
+save results

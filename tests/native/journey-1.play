@@ -1,0 +1,40 @@
+# Journey stage 1 (First Shift) on a desktop: the briefing, the countdown,
+# shelves restocked and guests served by clicking the market, to the
+# results with the First Shift achievement, then Next into stage 2.
+# viewport 1280x720@1
+until 300 All modes
+frames 10
+click =All modes
+until 60 Choose a mode
+frames 10
+click =Journey
+until 60 Journey stages
+frames 10
+save journey
+click =First Shift
+until 60 Start shift
+frames 10
+click =Start shift
+until 60 3
+save countdown
+until 300 Checkout 1
+frames 5
+repeat 6000 until Shift complete
+  click =Checkout 1
+  frames 10
+  click =Rise & Crumb Bakery — shelf 1
+  frames 10
+  click =Rise & Crumb Bakery — shelf 2
+  frames 10
+  click =Rise & Crumb Bakery — shelf 3
+  frames 10
+  click =Rise & Crumb Bakery — shelf 4
+  frames 10
+end
+frames 60
+expect Achievement: First Shift
+save results
+click Next: Morning Rush
+until 300 Checkout 1
+frames 60
+save stage-2

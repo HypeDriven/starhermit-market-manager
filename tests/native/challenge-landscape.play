@@ -1,0 +1,32 @@
+# The Ten Moves Only challenge on a phone held sideways (844 x 390): a
+# stocker and a cashier hired from the staff drawer (two moves), then the
+# staff run the market to the results.
+# viewport 844x390@1
+until 300 All modes
+frames 10
+click =All modes
+until 60 Choose a mode
+frames 10
+click =Challenge
+until 60 Challenges
+frames 10
+click Ten Moves Only
+until 60 Start shift
+frames 10
+save challenge-setup
+click =Start shift
+until 300 Checkout 1
+frames 10
+click =Toggle staff panel
+until 60 Hire stocker
+frames 10
+click Hire stocker (cost
+until 60 on shift
+frames 10
+click Hire cashier (cost
+until 60 Moves left: 8
+frames 10
+save staff-hired
+until 6000 Shift complete
+frames 60
+save results

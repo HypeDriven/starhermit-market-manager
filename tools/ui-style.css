@@ -49,6 +49,7 @@
 .h3 { color: var(--accent-deep); font-size: 18.7px; font-weight: 700; }
 .strong { color: var(--ink); font-size: 16px; font-weight: 700; }
 .chip-text { color: var(--ink); font-size: 13.6px; }
+.chip-text-center { color: var(--ink); font-size: 13.6px; text-align: center; }
 .card-h { color: var(--accent-deep); font-size: 16.8px; font-weight: 700; }
 .card-p { color: var(--ink); font-size: 14.4px; }
 .meta { color: var(--ink-soft); font-size: 13.1px; }

@@ -251,9 +251,9 @@ function titleScreen(w: number): void {
   const mins = Math.max(0, Math.round((next - nowMs) / 60000));
   const chip = `${T("Daily market:")} ${date} · ${T("new market in {h}h {m}m", { h: Math.floor(mins / 60), m: String(mins % 60).padStart(2, "0") })}`;
   ui.column("chips", () => {
-    ui.column("daily-chip", () => para(chip, w - 26, "chip-text", "daily-chip-text"), { style: "chip" });
+    ui.column("daily-chip", () => para(chip, w - 26, "chip-text-center", "daily-chip-text"), { style: "chip" });
     const who = playerLine();
-    if (who) ui.column("player-chip", () => para(who, w - 26, "chip-text", "player-chip-text"), { style: "chip" });
+    if (who) ui.column("player-chip", () => para(who, w - 26, "chip-text-center", "player-chip-text"), { style: "chip" });
   }, { spacing: 8, width: w, align: "center" });
   const won = Object.values(app.progress.journey || {}).filter((r) => r.won).length;
   para(won
@@ -849,21 +849,20 @@ function boardMirror(L: Layout): void {
     if (mirrorWasClosed) { mirrorOpenedAt = frame().frame; mirrorWasClosed = false; }
     const maxH = Math.max(120, (L.lh - L.top - L.bottom) * 0.6);
     const key = "mirror-list";
-    const h = lastSize.get(key) ?? 0;
-    const scroll = h > maxH;
+    // Always one scroll area (its height follows the content up to the limit): a layout that changed
+    // between frames would lose the focus the list opened with.
+    const h = lastSize.get(key) ?? maxH;
     const inner = w - 26;
     const rr = ui.place(key, { anchor: "bottom-start", x: 12, y: bottom }, () => ui.column(`${key}-box`, () => {
-      const body = (): void => {
+      ui.scrollArea(`${key}-scroll`, { width: inner, height: Math.min(h, maxH - 26) }, () => {
         const c = ui.column(`${key}-in`, () => {
           for (const [i, e] of entries.entries()) {
             const v = explain(e.cmd);
-            button({ id: mirror.ids[i]!, text: e.label, style: "btn-wide", act: () => issueCommand(e.cmd), disabled: !v.ok, reason: v.ok ? undefined : T(humanizeReason(v.reason)) }, inner - (scroll ? 14 : 0));
+            button({ id: mirror.ids[i]!, text: e.label, style: "btn-wide", act: () => issueCommand(e.cmd), disabled: !v.ok, reason: v.ok ? undefined : T(humanizeReason(v.reason)) }, inner - 14);
           }
-        }, { spacing: 8, width: inner - (scroll ? 14 : 0) });
-        lastSize.set(key, c.height / L.sc + 26);
-      };
-      if (scroll) ui.scrollArea(`${key}-scroll`, { width: inner, height: maxH - 26 }, body);
-      else body();
+        }, { spacing: 8, width: inner - 14 });
+        lastSize.set(key, c.height / L.sc);
+      });
     }, { style: "mirror-list", width: w, spacing: 0 }));
     rect(rr);
     return;

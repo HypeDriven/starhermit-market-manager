@@ -141,6 +141,13 @@
         "size": 13.6
       }
     },
+    ".chip-text-center": {
+      "text": {
+        "color": "$ink",
+        "size": 13.6,
+        "align": "center"
+      }
+    },
     ".card-h": {
       "text": {
         "color": "$accent-deep",
