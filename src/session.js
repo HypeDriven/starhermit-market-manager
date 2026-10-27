@@ -6,7 +6,6 @@ import {
   createGame, step, applyCommand, legalActions, validateCommand, computeScore,
   stateHash, isTerminal, TICK_MS,
 } from './rules.js';
-import { hashString, stableStringify } from './rng.js';
 import { CONTENT_VERSION, DEPARTMENT_TYPES } from './content.js';
 
 export const BUILD_VERSION = 1;
@@ -16,68 +15,43 @@ const HASH_EVERY = 25;
 const UNDO_LIMIT = 50;
 
 // ---------------------------------------------------------------------------
-// Versioned, checksummed local storage
+// Storage: an injectable key store
 // ---------------------------------------------------------------------------
+//
+// The browser build kept each record in localStorage as mm.<key>, versioned
+// and checksummed. The engine client keeps them in its save document instead
+// (src/store.js keyStore): setKeyStore() hands this module that store. Until
+// then (node tests) records live in memory.
 
-const storage = (() => {
-  try {
-    const t = '__mm_probe__';
-    localStorage.setItem(t, '1');
-    localStorage.removeItem(t);
-    return localStorage;
-  } catch {
-    const mem = new Map(); // private browsing / sandbox fallback
-    return {
-      getItem: (k) => (mem.has(k) ? mem.get(k) : null),
-      setItem: (k, v) => mem.set(k, String(v)),
-      removeItem: (k) => mem.delete(k),
-    };
-  }
-})();
+const clone = (v) => JSON.parse(JSON.stringify(v));
+const memory = new Map();
+let keyStore = {
+  load: (key) => (memory.has(key) ? clone(memory.get(key)) : null),
+  save: (key, data) => { memory.set(key, clone(data)); },
+};
 
-function wrapDoc(data) {
-  const body = stableStringify(data);
-  return JSON.stringify({ v: 1, checksum: hashString(body), data: JSON.parse(body) });
-}
-
-function unwrapDoc(raw) {
-  if (!raw) return null;
-  try {
-    const doc = JSON.parse(raw);
-    if (doc.v !== 1) return null;
-    if (hashString(stableStringify(doc.data)) !== doc.checksum) return null; // corrupt
-    return doc.data;
-  } catch {
-    return null;
-  }
-}
+/** Replaces the record store: { load(key) → data | null, save(key, data) }. */
+export function setKeyStore(store) { keyStore = store; }
 
 export function saveKey(key, data) {
-  try { storage.setItem('mm.' + key, wrapDoc(data)); return true; } catch { return false; }
+  try { keyStore.save(key, data); return true; } catch { return false; }
 }
 
 export function loadKey(key) {
-  return unwrapDoc(storage.getItem('mm.' + key));
+  try { return keyStore.load(key); } catch { return null; }
 }
 
 // ---------------------------------------------------------------------------
 // Settings (accessibility, audio, graphics, controls)
 // ---------------------------------------------------------------------------
 
+// The game's own settings. Volumes, graphics, reduced motion, high contrast
+// and larger text (the browser build's music … largeText) are the runtime's
+// Options now; hold-to-confirm and timing assist were stored but never read.
 export const DEFAULT_SETTINGS = {
-  music: 0.6, effects: 0.8, ambience: 0.5, voice: 0.7,
-  // Graphics (see gfx.js): { preset: 'auto'|low|balanced|high|ultra,
-  // render_scale, adaptive, show_fps, <category>: tier }. Older saves carry a
-  // `quality` field instead, which main.js migrates on load.
-  graphics: null,
   theme: null,     // null = stage default
-  reducedMotion: false,
-  highContrast: false,
   colorblind: 'none', // none | deuteranopia | protanopia | tritanopia
-  largeText: false,
   leftHanded: false,
-  holdToConfirm: false,
-  timingAssist: false,
   haptics: true,
   camera: 'isometric', // isometric | high | low
   tutorialsDone: [],
@@ -115,7 +89,7 @@ const DEFAULT_PROGRESS = {
 };
 
 export function loadProgress() {
-  return { ...structuredClone(DEFAULT_PROGRESS), ...(loadKey('progress.v1') || {}) };
+  return { ...clone(DEFAULT_PROGRESS), ...(loadKey('progress.v1') || {}) };
 }
 
 // Another device saved since this one last loaded the slot: keep the better
@@ -124,8 +98,8 @@ export function loadProgress() {
 // counters — so neither side's progress is dropped.
 export function mergeProgress(remote, local) {
   const obj = (v) => (v && typeof v === 'object' && !Array.isArray(v) ? v : {});
-  const a = { ...structuredClone(DEFAULT_PROGRESS), ...obj(remote) };
-  const b = { ...structuredClone(DEFAULT_PROGRESS), ...obj(local) };
+  const a = { ...clone(DEFAULT_PROGRESS), ...obj(remote) };
+  const b = { ...clone(DEFAULT_PROGRESS), ...obj(local) };
   const table = (x, y) => {
     const out = { ...obj(x) };
     for (const [id, rec] of Object.entries(obj(y))) {

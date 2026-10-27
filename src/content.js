@@ -3,6 +3,9 @@
 // the rules engine consumes resolved configs from buildStageConfig().
 
 import { hashString } from './rng.js';
+
+// Plain JSON data only (the engine's interpreter has no structuredClone).
+const clone = (v) => JSON.parse(JSON.stringify(v));
 import { createGame, step, applyCommand, isTerminal, legalActions, COMMANDS, computeScore } from './rules.js';
 
 export const CONTENT_VERSION = 1;
@@ -89,11 +92,11 @@ function stage(p) {
   return {
     version: CONTENT_VERSION,
     theme: 'sunrise',
-    ...structuredClone(DEFAULTS),
+    ...clone(DEFAULTS),
     ...p,
     allowed: { ...DEFAULTS.allowed, ...(p.allowed || {}) },
     staff: { ...DEFAULTS.staff, ...(p.staff || {}) },
-    upgradeCosts: structuredClone(p.upgradeCosts || DEFAULTS.upgradeCosts),
+    upgradeCosts: clone(p.upgradeCosts || DEFAULTS.upgradeCosts),
   };
 }
 
@@ -459,9 +462,9 @@ export function buildStageConfig(configOrId) {
   if (typeof configOrId === 'string') {
     const found = journeyStage(configOrId) || TUTORIALS.find((t) => t.id === configOrId) || CHALLENGES.find((c) => c.id === configOrId);
     if (!found) throw new Error('unknown stage ' + configOrId);
-    return structuredClone(found);
+    return clone(found);
   }
-  return structuredClone(configOrId);
+  return clone(configOrId);
 }
 
 // ---------------------------------------------------------------------------

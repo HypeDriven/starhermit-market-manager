@@ -1,6 +1,6 @@
 // Key extraction for the i18n coverage test (run directly to list the keys).
 // Keys are the US-English source strings: literal T('…') / N('…') calls in
-// src/, data-i18n* markup in index.html and the content tables' display fields
+// src/*.js and native/*.ts and the content tables' display fields
 // (stage, lesson and challenge names and blurbs, lesson steps, departments,
 // themes, achievements, practice paces).
 import { readFileSync, readdirSync } from 'node:fs';
@@ -10,20 +10,22 @@ import { ACHIEVEMENTS } from '../src/session.js';
 
 const ROOT = new URL('..', import.meta.url).pathname;
 const unescape = (s) => s.replace(/\\(['"\\])/g, '$1');
-const SKIP = new Set(['i18n.js', 'sh-strings.js', 'gfx-panel.js']);
+const SKIP = new Set(['i18n.js', 'sh-strings.js', 'i18n.ts']);
 
 export function sourceKeys() {
   const keys = new Set();
   const call = /(?<![\w.$])(?:T|N)\(\s*(?:'((?:[^'\\\n]|\\.)*)'|"((?:[^"\\\n]|\\.)*)")/g;
   const ternary = /(?<![\w.$])T\([^'"\n]*\?\s*'([^']+)'\s*:\s*'([^']+)'/g;
-  for (const f of readdirSync(join(ROOT, 'src'))) {
-    if (!f.endsWith('.js') || SKIP.has(f)) continue;
-    const src = readFileSync(join(ROOT, 'src', f), 'utf8');
-    for (const m of src.matchAll(call)) keys.add(unescape(m[1] ?? m[2]));
-    for (const m of src.matchAll(ternary)) { keys.add(m[1]); keys.add(m[2]); }
+  const ternary2 = /(?<![\w.$])T\([^'"\n]*\?\s*"([^"]+)"\s*:\s*"([^"]+)"/g;
+  for (const dir of ['src', 'native']) {
+    for (const f of readdirSync(join(ROOT, dir))) {
+      if (!/\.(js|ts)$/.test(f) || SKIP.has(f)) continue;
+      const src = readFileSync(join(ROOT, dir, f), 'utf8');
+      for (const m of src.matchAll(call)) keys.add(unescape(m[1] ?? m[2]));
+      for (const m of src.matchAll(ternary)) { keys.add(m[1]); keys.add(m[2]); }
+      for (const m of src.matchAll(ternary2)) { keys.add(m[1]); keys.add(m[2]); }
+    }
   }
-  const html = readFileSync(join(ROOT, 'index.html'), 'utf8');
-  for (const m of html.matchAll(/data-i18n(?:-aria|-title)?="([^"]+)"/g)) keys.add(m[1]);
   return keys;
 }
 

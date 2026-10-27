@@ -1,9 +1,26 @@
 name=Market Manager
 description=Stock shelves, manage checkout queues, and invest in staff and upgrades during a busy market shift.
-launch=index.html
 owner=2712e04e-461b-4d23-81ae-e40b429128a8
 server=score-script.js
 cover=cover.jpg
+
+# StarHermit engine script game: one package, played natively by the
+# StarHermit client and in browsers by the engine's web runtime. Browsers open
+# launch=index.html, the loader `npm run package` writes (it pins the engine
+# on wiki.starhermit.com by hash; never edit it). Re-run `npm run package`
+# after every change and commit index.html + starhermit-files.json.
+launch=index.html
+engine.api=1
+engine.entry=native/main.ts
+engine.version=1.18.0
+engine.minor=20
+engine.capabilities=platform,storage,clipboard
+
+# Keyboard controls (players rebind keys and pads in the runtime's Options).
+# The market is also played with the pointer or touch: tap a shelf to
+# restock it, a checkout to serve the next guest, a covered department to
+# unlock it (else its actions open); drag to pan, the wheel zooms. Every
+# button takes the pointer, touch, or Tab and Enter.
 control.back=Escape | Close panel / pause
 control.pause=KeyP | Pause / resume
 control.hint=KeyH | Hint
@@ -11,3 +28,17 @@ control.undo=KeyU | Undo
 control.camera=KeyR | Reset camera
 control.prev=ArrowUp+ArrowLeft+KeyW+KeyA | Previous action
 control.next=ArrowDown+ArrowRight+KeyS+KeyD | Next action
+engine.group.back=Shift
+engine.group.prev=Action list
+
+# Gamepad defaults: the D-pad or left stick walks the market's action list,
+# South confirms the focused action, East closes a panel or cancels, Start
+# pauses, North gives a hint, the left shoulder undoes (Practice), the right
+# stick resets the camera.
+engine.gamepad.back=East
+engine.gamepad.pause=Start
+engine.gamepad.hint=North
+engine.gamepad.undo=LeftShoulder
+engine.gamepad.camera=RightStickPress
+engine.gamepad.prev=DpadUp+DpadLeft+LeftStickUp+LeftStickLeft
+engine.gamepad.next=DpadDown+DpadRight+LeftStickDown+LeftStickRight
