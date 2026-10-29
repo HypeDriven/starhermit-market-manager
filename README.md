@@ -4,7 +4,7 @@ A bright isometric neighborhood market management game on the StarHermit
 engine. Stock displays, serve queues, hire staff, and unlock new departments
 through earned revenue.
 
-It is a StarHermit engine script game (engine 1.24.0, host API 1.21): one
+It is a StarHermit engine script game (engine 1.24.0, host API 1.26): one
 package played natively by the StarHermit client and in browsers by the
 engine's web runtime (`index.html` is the engine's loader).
 

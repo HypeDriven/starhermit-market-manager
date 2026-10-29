@@ -11,11 +11,10 @@
 // the band the HUD leaves (setViewOffset), with its isometric / high / low
 // presets, spring transitions, drag to pan and the wheel to zoom.
 //
-// From three.js: light intensities are ÷ π (the engine's convention, three
-// r155+'s physical lights); the post chain (GTAOPass, UnrealBloomPass, the
+// From three.js r160 (engine.minor 26): light intensities and the fitted shadow box as
+// the page set them; the post chain (GTAOPass, UnrealBloomPass, the
 // GradeShader before the output, SMAA / FXAA / MSAA) is renderer.ao / bloom /
-// grade (linear) / antialias; the shadow camera is fitted along the view
-// (`shadow.distance`) instead of an orthographic box around the room. The
+// grade (linear) / antialias. The
 // render loop, pixel ratio, adaptive resolution and the frame-rate readout
 // are the runtime's. The procedural canvas textures are painted with
 // starhermit:canvas exactly as before. Gameplay truth comes only from the
@@ -267,9 +266,9 @@ scene.add(marketGroup);
 const fxGroup = new Group();
 scene.add(fxGroup);
 
-const hemi = new HemisphereLight(0xffffff, 0x777777, LOOK.hemiIntensity / PI);
+const hemi = new HemisphereLight(0xffffff, 0x777777, LOOK.hemiIntensity);
 scene.add(hemi);
-const keyLight = new DirectionalLight(0xffffff, 1.0 / PI);
+const keyLight = new DirectionalLight(0xffffff, 1.0);
 keyLight.position.set(6, 10, 4);
 keyLight.shadow.bias = -0.0006;
 keyLight.shadow.normalBias = 0.02;
@@ -1076,7 +1075,7 @@ function applyThemeToScene(): void {
   hemi.color.setHex(theme.sky);
   hemi.groundColor.setHex(theme.ground);
   keyLight.color.setHex(theme.key);
-  keyLight.intensity = theme.intensity / PI;
+  keyLight.intensity = theme.intensity;
   if (groundMesh) (groundMesh.material as Lit).color.setHex(theme.ground);
   if (wallMesh) (wallMesh.material as Lit).color.setHex(theme.tile).multiplyScalar(0.72);
   for (const m of archMats) m.color.setHex(theme.accent);
@@ -1141,7 +1140,7 @@ export function applyLook(next: Look): void {
   if (discMesh) discMesh.material.opacity = next.shadows > 0 ? 0.1 : 0.18;
   // reflections (image-based lighting); the hemisphere fill backs off to compensate
   applyEnv();
-  hemi.intensity = (next.reflections ? LOOK.hemiIntensityWithEnv : LOOK.hemiIntensity) / PI;
+  hemi.intensity = next.reflections ? LOOK.hemiIntensityWithEnv : LOOK.hemiIntensity;
   // detail, bloom-dependent colours, particle look
   scene.traverse((o) => {
     const m = (o as Mesh).material;
@@ -1203,8 +1202,10 @@ function updateFraming(): void {
   const dist = ext * 2.5;
   keyLight.position.set(dir.x * dist, dir.y * dist, dir.z * dist);
   keyLight.target.position.set(0, 0, 0);
-  const p = FRAMING.presets[options.camera] ?? FRAMING.presets.isometric!;
-  keyLight.shadow.distance = p.dist + ext * 1.6;
+  const cam = keyLight.shadow.camera as OrthographicCamera;
+  cam.left = -ext; cam.right = ext; cam.top = ext; cam.bottom = -ext;
+  cam.near = Math.max(0.1, dist - ext * 1.6); cam.far = dist + ext * 1.6;
+  cam.updateProjectionMatrix();
 }
 function applyOrtho(): void {
   const w = viewport.w, h = viewport.h;
