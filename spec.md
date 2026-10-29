@@ -13,7 +13,7 @@ short, and spend the takings on staff, upgrades and new departments before closi
 | Genre | Single-player real-time management / tycoon puzzle |
 | Players | 1, plus asynchronous leaderboards |
 | Session | 2–8 minutes per shift (120–240 ticks at 500 ms) |
-| Platforms | StarHermit engine 1.23.0 script game (host API 1.21, `engine.minor=20`): played natively by the StarHermit client and in desktop and mobile browsers by the engine's web runtime; portrait and landscape |
+| Platforms | StarHermit engine 1.24.0 script game (host API 1.21, `engine.minor=20`): played natively by the StarHermit client and in desktop and mobile browsers by the engine's web runtime; portrait and landscape |
 | Rendering | `starhermit:scene` orthographic isometric market under a `starhermit:ui` shell; an action list of every market command is an equal keyboard / gamepad play path |
 | Content id | 40 journey stages, 4 lessons, 5 challenges, 3 practice paces, 1 daily |
 
@@ -21,8 +21,8 @@ short, and spend the takings on staff, upgrades and new departments before closi
 
 | Path | Contents |
 |---|---|
-| `starhermit.txt` | Manifest: name, owner, `server=score-script.js`, cover, `launch=index.html`, `engine.entry=native/main.ts`, `engine.version=1.23.0`, `engine.minor=20`, capabilities (platform, storage, clipboard), the seven actions with keys and gamepad defaults. |
-| `index.html`, `starhermit-files.json` | The engine's web loader (pins engine 1.23.0 on wiki.starhermit.com by hash) and the package's file index, both written by `npm run package` — never edited by hand. |
+| `starhermit.txt` | Manifest: name, owner, `server=score-script.js`, cover, `launch=index.html`, `engine.entry=native/main.ts`, `engine.version=1.24.0`, `engine.minor=20`, capabilities (platform, storage, clipboard), the seven actions with keys and gamepad defaults. |
+| `index.html`, `starhermit-files.json` | The engine's web loader (pins engine 1.24.0 on wiki.starhermit.com by hash) and the package's file index, both written by `npm run package` — never edited by hand. |
 | `native/main.ts` | Entry module: the screen state machine, rounds, the fixed-step 500 ms tick, commands, picks, tutorials, hints, undo, results and posting, settings, keyboard / gamepad actions, pointer and touch routing, lifecycle. |
 | `native/screens.ts` | Every screen, the header and footer, the HUD, drawers, action list, toasts and countdown on `starhermit:ui`; the content strings `src/ui.js` held (refusal reasons, mode cards, help cards, stage names). |
 | `native/render.ts` | The market on `starhermit:scene`: geometry, people, effects, camera framing, picking, colour-vision palettes, the per-tier look and post effects. |
