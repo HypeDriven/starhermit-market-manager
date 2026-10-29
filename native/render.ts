@@ -1159,11 +1159,12 @@ export function applyLook(next: Look): void {
     blendIntensity: 0.85, radius: 0.45, distanceExponent: 1.4, thickness: 1.2, scale: 1.0, samples: next.ao === "high" ? 16 : 8, resolution: b.aoRes,
     denoise: { lumaPhi: 10, depthPhi: 2, normalPhi: 3, radius: next.ao === "high" ? 6 : 4, rings: 2, samples: next.ao === "high" ? 16 : 8, radiusExponent: 2 },
   };
-  renderer.bloom = next.bloom ? { strength: LOOK.bloom.strength, radius: LOOK.bloom.radius, threshold: LOOK.bloom.threshold, resolution: b.bloomRes } : null;
+  // r160 page: UnrealBloomPass strength squared at minor 29 (r185 bloom).
+  renderer.bloom = next.bloom ? { strength: LOOK.bloom.strength * LOOK.bloom.strength, radius: LOOK.bloom.radius, threshold: LOOK.bloom.threshold, resolution: b.bloomRes } : null;
   // render.js GradeShader (linear, before the output): a 0.22 S-curve, +10 % saturation, warm highlights and
   // cool shadows split by a 0.15–0.75 smoothstep, the 0.2 vignette (0.38–0.9, y × 0.85).
   renderer.grade = next.grade ? {
-    space: "linear", contrast: 0.22, saturation: 1.1, split: [0.15, 0.75], shadows: [0.97, 0.985, 1.04], highlights: [1.035, 1.0, 0.965],
+    space: "linear", contrast: 0.22, saturation: 1.1, split: [0.15, 0.75], shadows: [0.97, 0.985, 1.04], highlights: [1.035, 1.0, 0.965], overRange: "keep",
     vignette: { amount: LOOK.vignette, inner: 0.38, outer: 0.9, scale: [1, 0.85] },
   } : null;
   renderer.antialias = next.antialias;
