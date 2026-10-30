@@ -1098,7 +1098,7 @@ export function setTheme(themeObj: Theme | null): void {
 
 function envMap(): Texture | null {
   if (!envTexture) {
-    try { envTexture = new PMREMGenerator(renderer).fromScene(new RoomEnvironment(renderer), 0.04).texture; }
+    try { envTexture = new PMREMGenerator(renderer).fromScene((() => { const room = new RoomEnvironment(renderer); room.position.y = 0 /* pre-r183 page: room at origin (minor 32 default is -3.5) */; return room; })(), 0.04).texture; }
     catch (e) { console.warn(`environment: ${e instanceof Error ? e.message : String(e)}`); }
   }
   return envTexture;
