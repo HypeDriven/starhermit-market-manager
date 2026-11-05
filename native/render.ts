@@ -14,7 +14,7 @@
 // From three.js r160 (engine.minor 26): light intensities and the fitted shadow box as
 // the page set them; the post chain (GTAOPass, UnrealBloomPass, the
 // GradeShader before the output, SMAA / FXAA / MSAA) is renderer.ao / bloom /
-// grade (linear) / antialias. The
+// grade (linear) / antialias, each on and sized by the graphics level. The
 // render loop, pixel ratio, adaptive resolution and the frame-rate readout
 // are the runtime's. The procedural canvas textures are painted with
 // starhermit:canvas exactly as before. Gameplay truth comes only from the
@@ -1136,6 +1136,7 @@ export function applyLook(next: Look): void {
   // shadows
   renderer.shadowMap.enabled = next.shadows > 0;
   keyLight.castShadow = next.shadows > 0;
+  // The level's map size: at engine.minor ≥ 23 the engine keeps whatever the game sets.
   if (next.shadows > 0) keyLight.shadow.mapSize = next.shadows;
   if (discMesh) discMesh.material.opacity = next.shadows > 0 ? 0.1 : 0.18;
   // reflections (image-based lighting); the hemisphere fill backs off to compensate
@@ -1152,15 +1153,17 @@ export function applyLook(next: Look): void {
   });
   if (propsGroup) propsGroup.visible = next.detailed;
   applyBackground();
-  pMat!.color.setScalar(next.bloom ? LOOK.hdrBoost : 1);
-  mMat!.opacity = next.bloom ? 0.75 : 0.55;
+  pMat!.color.setScalar(next.bloom !== null ? LOOK.hdrBoost : 1);
+  mMat!.opacity = next.bloom !== null ? 0.75 : 0.55;
   // the post chain (render.js buildPost)
-  renderer.ao = next.ao === "off" ? null : {
-    blendIntensity: 0.85, radius: 0.45, distanceExponent: 1.4, thickness: 1.2, scale: 1.0, samples: next.ao === "high" ? 16 : 8, resolution: b.aoRes,
-    denoise: { lumaPhi: 10, depthPhi: 2, normalPhi: 3, radius: next.ao === "high" ? 6 : 4, rings: 2, samples: next.ao === "high" ? 16 : 8, radiusExponent: 2 },
+  // The level's AO; full resolution is the engine's "high" (the old Ultra's wider denoise).
+  const ao = next.ao, full = !!ao && ao.resolution >= 1;
+  renderer.ao = ao && {
+    blendIntensity: 0.85, radius: 0.45, distanceExponent: 1.4, thickness: 1.2, scale: 1.0, samples: ao.samples, resolution: ao.resolution,
+    denoise: { lumaPhi: 10, depthPhi: 2, normalPhi: 3, radius: full ? 6 : 4, rings: 2, samples: ao.denoiseSamples, radiusExponent: 2 },
   };
   // r160 page: the r160 bloom model with the page's own strength (minor 30).
-  renderer.bloom = next.bloom ? { model: "r160", strength: LOOK.bloom.strength, radius: LOOK.bloom.radius, threshold: LOOK.bloom.threshold, resolution: b.bloomRes } : null;
+  renderer.bloom = next.bloom === null ? null : { model: "r160", strength: LOOK.bloom.strength, radius: LOOK.bloom.radius, threshold: LOOK.bloom.threshold, resolution: next.bloom };
   // render.js GradeShader (linear, before the output): a 0.22 S-curve, +10 % saturation, warm highlights and
   // cool shadows split by a 0.15–0.75 smoothstep, the 0.2 vignette (0.38–0.9, y × 0.85).
   renderer.grade = next.grade ? {

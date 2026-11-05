@@ -28,7 +28,7 @@ short, and spend the takings on staff, upgrades and new departments before closi
 | `native/render.ts` | The market on `starhermit:scene`: geometry, people, effects, camera framing, picking, colour-vision palettes, the per-tier look and post effects. |
 | `native/audio.ts` | One-shots from `sfx/`, the music layers and ambience rendered into looping clips. |
 | `native/platform.ts` | The save document on `starhermit:storage` (`saves`), the old cloud slot's migration, conflict merges, legacy settings, the player, invite link, the platform clock, the high-score board (read and post through `score-script.js`). |
-| `native/quality.ts` | The browser build's graphics presets and budgets keyed by the runtime's quality tier and level. |
+| `native/quality.ts` | The look per graphics level: the level's effects (`levelSettings()`) and the browser build's art presets and budgets keyed by its tier. |
 | `native/style.ts` | Registers `assets/ui-style.json` and the theme; the high-contrast and colour-vision token sets. |
 | `native/i18n.ts` | The interface language from the runtime's preferences, `T()` / `N()` / `S()`. |
 | `native/game.ts` | Typed facade over the browser build's pure modules (`allowJs`). |
@@ -329,7 +329,9 @@ graphics level (Auto from the device, or a level), render scale, adaptive resolu
 readout; the browser build's per-effect overrides are not offered.
 
 **Looks per tier** (`native/quality.ts`; the browser build's presets and budgets, each tuned to hold 60 FPS on
-the weakest GPU its Auto gave it), keyed by the runtime's quality tier (`frame().quality`):
+the weakest GPU its Auto gave it), keyed by the level's quality tier. The engine-owned effects (shadows and their map
+size, AO, bloom, the grade, anti-aliasing and the bloom / AO resolutions) are the level's own (`levelSettings()`); the
+table shows them at each tier's anchor level (quantum, molecular, terrestrial, galactic):
 
 | Tier | Shadows | AO | Bloom / grade | Anti-aliasing | Reflections, detail | Materials | Textures | LOD | Planters | Motes | Sparks | Bloom / AO resolution |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
@@ -338,7 +340,7 @@ the weakest GPU its Auto gave it), keyed by the runtime's quality tier (`frame()
 | High | 2048 | on | on | SMAA | on | Physical clearcoat | 1× | 1 | 10 | 70 | 1× | ½ / ½ |
 | Ultra | 4096 | high | on | MSAA | on | Physical clearcoat | 2× | 1.5 | 15 | 120 | 1.5× | full / full |
 
-Sparks grow with the level within the tier (`frame().levelIndex`, at most 2×). A tier change rebuilds a live
+Sparks grow with the level's particle budget over the tier's anchor (at most 2×). A tier change rebuilds a live
 market from its current state when the asset budget changes. Gameplay is identical on every tier.
 
 **Visual assets the design calls for:** a title/menu backdrop that shows the fantasy before the player commits

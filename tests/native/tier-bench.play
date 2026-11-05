@@ -1,0 +1,141 @@
+# Graphics-tier bench (tools/engine-tier-bench.mjs): Journey stage 1 (First Shift, fixed), past the
+# countdown, then ~600 frames of serving the checkout and restocking the bakery shelves by clicks
+# (guests walking, stock, sparks, motes) inside the measured stretch.
+# viewport 1280x720@1
+until 300 All modes
+frames 10
+click =All modes
+until 60 Choose a mode
+frames 10
+click =Journey
+until 60 Journey stages
+frames 10
+click =First Shift
+until 60 Start shift
+frames 10
+click =Start shift
+until 60 3
+until 300 Checkout 1
+frames 120
+measure start
+click =Checkout 1
+frames 10
+click =Rise & Crumb Bakery — shelf 1
+frames 10
+click =Rise & Crumb Bakery — shelf 2
+frames 10
+click =Rise & Crumb Bakery — shelf 3
+frames 10
+click =Rise & Crumb Bakery — shelf 4
+frames 10
+click =Checkout 1
+frames 10
+click =Rise & Crumb Bakery — shelf 1
+frames 10
+click =Rise & Crumb Bakery — shelf 2
+frames 10
+click =Rise & Crumb Bakery — shelf 3
+frames 10
+click =Rise & Crumb Bakery — shelf 4
+frames 10
+click =Checkout 1
+frames 10
+click =Rise & Crumb Bakery — shelf 1
+frames 10
+click =Rise & Crumb Bakery — shelf 2
+frames 10
+click =Rise & Crumb Bakery — shelf 3
+frames 10
+click =Rise & Crumb Bakery — shelf 4
+frames 10
+click =Checkout 1
+frames 10
+click =Rise & Crumb Bakery — shelf 1
+frames 10
+click =Rise & Crumb Bakery — shelf 2
+frames 10
+click =Rise & Crumb Bakery — shelf 3
+frames 10
+click =Rise & Crumb Bakery — shelf 4
+frames 10
+click =Checkout 1
+frames 10
+click =Rise & Crumb Bakery — shelf 1
+frames 10
+click =Rise & Crumb Bakery — shelf 2
+frames 10
+click =Rise & Crumb Bakery — shelf 3
+frames 10
+click =Rise & Crumb Bakery — shelf 4
+frames 10
+click =Checkout 1
+frames 10
+click =Rise & Crumb Bakery — shelf 1
+frames 10
+click =Rise & Crumb Bakery — shelf 2
+frames 10
+click =Rise & Crumb Bakery — shelf 3
+frames 10
+click =Rise & Crumb Bakery — shelf 4
+frames 10
+click =Checkout 1
+frames 10
+click =Rise & Crumb Bakery — shelf 1
+frames 10
+click =Rise & Crumb Bakery — shelf 2
+frames 10
+click =Rise & Crumb Bakery — shelf 3
+frames 10
+click =Rise & Crumb Bakery — shelf 4
+frames 10
+click =Checkout 1
+frames 10
+click =Rise & Crumb Bakery — shelf 1
+frames 10
+click =Rise & Crumb Bakery — shelf 2
+frames 10
+click =Rise & Crumb Bakery — shelf 3
+frames 10
+click =Rise & Crumb Bakery — shelf 4
+frames 10
+click =Checkout 1
+frames 10
+click =Rise & Crumb Bakery — shelf 1
+frames 10
+click =Rise & Crumb Bakery — shelf 2
+frames 10
+click =Rise & Crumb Bakery — shelf 3
+frames 10
+click =Rise & Crumb Bakery — shelf 4
+frames 10
+click =Checkout 1
+frames 10
+click =Rise & Crumb Bakery — shelf 1
+frames 10
+click =Rise & Crumb Bakery — shelf 2
+frames 10
+click =Rise & Crumb Bakery — shelf 3
+frames 10
+click =Rise & Crumb Bakery — shelf 4
+frames 10
+click =Checkout 1
+frames 10
+click =Rise & Crumb Bakery — shelf 1
+frames 10
+click =Rise & Crumb Bakery — shelf 2
+frames 10
+click =Rise & Crumb Bakery — shelf 3
+frames 10
+click =Rise & Crumb Bakery — shelf 4
+frames 10
+click =Checkout 1
+frames 10
+click =Rise & Crumb Bakery — shelf 1
+frames 10
+click =Rise & Crumb Bakery — shelf 2
+frames 10
+click =Rise & Crumb Bakery — shelf 3
+frames 10
+click =Rise & Crumb Bakery — shelf 4
+frames 10
+measure stop
