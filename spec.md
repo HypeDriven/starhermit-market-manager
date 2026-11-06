@@ -36,14 +36,13 @@ short, and spend the takings on staff, upgrades and new departments before closi
 | `src/content.js` | All content as data: department catalog, themes, maps, 40 journey stages, 4 tutorials, 5 challenges, practice and daily generators, offline validators. |
 | `src/session.js` | Session object (command log, hash chain, undo, replay envelope, snapshot/resume), the game's settings, progression, achievements; records kept through an injectable key store. |
 | `src/store.js` | The save document: normalize, merge (two devices), the old cloud slot, the key store over it, local boards. Pure, shared with the node tests. |
-| `src/i18n.js`, `src/locales/` | The string catalogue: `T(key, vars)` keyed by the US-English text, nine locale dictionaries (es-ES and fr-CA list only their differences from es-419 / fr-FR). |
-| `src/sh-strings.js` | Account strings in the nine locales. |
+| `assets/strings.json` | The string catalogue the engine loads (`strings.load`): US-English keys, nine locale tables. Account lines are the engine's `starhermit.*` strings. |
 | `src/rng.js` | mulberry32 seeded RNG, stable stringify, FNV-1a state hashing. |
 | `score-script.js` | StarHermit platform script (`server=`): range-checks a finished run's total and posts it to the `high-score` leaderboard. |
 | `server.js` | Optional Node host with the legacy `/api/v1` routes (not called by the client; left out of the package). |
 | `assets/` | `title-backdrop.webp`, `results-banner.webp`, `ui-style.json` (from `tools/ui-style.css`). |
 | `sfx/` | 15 Opus clips plus `manifest.txt` (canonical), `manifest.json` (generator), `manifest.md` (legacy prompt table). |
-| `tools/` | `ui-style.css` + `css.mjs` (the UI style sheet → `assets/ui-style.json`), `package-web.mjs` (`npm run package`), `browser-play.mjs` (the browser check), `i18n-sync.mjs` (locale rows in step with the keys). |
+| `tools/` | `ui-style.css` + `css.mjs` (the UI style sheet → `assets/ui-style.json`), `package-web.mjs` (`npm run package`), `browser-play.mjs` (the browser check). |
 | `tests/` | `rules.test.mjs` (75 assertions), `store.test.mjs`, `i18n.test.mjs` + `i18n-keys.mjs`, `native.mjs` + `native/*.play` (engine checks and play scripts). |
 
 ## 2. Vision and design pillars
@@ -356,13 +355,12 @@ limit; the UI click plays on the interface bus, the event sounds on effects.
 **Ambience:** a looping low-passed noise bed (420 Hz, the browser build's noise buffer and gain) on the music
 bus (the runtime has no ambience bus; the old ambience default is folded into its gain), silent while paused.
 
-**Music:** two layers on a 500 ms grid, each rendered once into a seamless 4 s loop and looped together during a
+**Music:** two layers on a 500 ms grid, each rendered offline once at start (OfflineAudioContext) into a seamless 4 s loop and looped together during a
 shift: the calm layer is a slow pentatonic sine arpeggio over C-D-E-G-A-C; the busy layer (a high noise tick on
 even steps plus an octave-up triangle) fades in with intensity from queue length and time pressure. The browser
 build's seeded ±4 % pitch wobble per note is not kept.
 
-**Clips:** authored `.opus` one-shots load one at a time once the audio runs (natively at once, in a browser
-after the first press); one still loading is silent (the browser build's synthesised fallbacks are not ported).
+**Clips:** authored `.opus` one-shots all load at start; one still loading is silent (the browser build's synthesised fallbacks are not ported).
 
 ### SFX event table (source of `sfx/manifest.txt`)
 
@@ -388,10 +386,9 @@ after the first press); one still loading is silent (the browser build's synthes
 
 The game ships in en-US, en-GB, es-419, es-ES, de-DE, fr-FR, fr-CA, pt-BR and it-IT. Every player-facing
 string — mode and stage lists, briefings, HUD, board summary and action list, drawers, toasts, refusal reasons,
-hints, lessons, results, help, settings and account lines — goes through `src/i18n.js`: `T(key, vars)` keyed by
+hints, lessons, results, help, settings and account lines — goes through `assets/strings.json` and the engine's `strings`: `T(key, vars)` keyed by
 the US-English text, `N(key)` to mark table entries (stage, department, theme, achievement and lesson names in
-`content.js` stay English data and are translated at display time). es-ES and fr-CA list only their
-differences from es-419 and fr-FR; en-GB carries spelling changes (Colour, Neighbourhood, Harbour …). The game's
+`content.js` stay English data and are translated at display time). en-GB carries spelling changes (Colour, Neighbourhood, Harbour …). The game's
 name stays "Market Manager" in every locale.
 
 **Choosing the language.** The interface language is the runtime's (`preferences().language`: the player's
@@ -446,7 +443,7 @@ that ends shows "signed out" and play goes on locally.
 answered, else the device's.
 
 **Leaderboard.** Signed in, every finished Journey, Daily, Challenge or Score-chase run posts its total through
-`score-script.js` (a practice session whose socket carries `{ type: 'result', scores: { 'high-score': total } }`;
+`score-script.js` (`leaderboards.submitScore`: a practice session whose socket carries `{ type: 'result', scores: { 'high-score': total } }`;
 the script range-checks it, 0–1,000,000 integer, higher is better, and posts it) — results are
 server-authoritative in the platform's sense: the script decides what is recorded. The results screen's line
 shows "Leaderboard rank: #N" (or posted / not posted). Learn and Practice post nothing. The Daily and
@@ -489,7 +486,7 @@ camera springs, transform updates and particle integration.
 - `tests/store.test.mjs`: the old cloud slot read as a document, session records through the key store, the
   two-device merge, local boards.
 - `tests/i18n.test.mjs`: every key (from `T` / `N` calls in `src/` and `native/` and the content tables) in all
-  nine locales with the same placeholders, no stray keys, regional inheritance.
+  nine locales with the same placeholders, no stray keys, regional inheritance in the generated tables.
 - `tests/native.mjs`: the web index matches the files (`npm run package` ran after the last change), `tsc`,
   `starhermit check .` with zero warnings, and every `tests/native/*.play` as a signed-out render check driving
   the real UI: `menus.play` (desktop: How to play, Settings, the Daily briefing, mode and lesson lists, a

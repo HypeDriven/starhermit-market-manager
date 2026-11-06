@@ -98,10 +98,9 @@ interface Layout {
 }
 const HEADER_H = 32;
 function layoutNow(): Layout {
-  const f = frame();
-  const sc = ui.preferences().scale;
-  const sa = f.safeArea;
-  const lw = Math.max(1, (f.width - sa.left - sa.right) / sc), lh = Math.max(1, (f.height - sa.top - sa.bottom) / sc);
+  const v = ui.viewport!();
+  const sc = v.scale;
+  const lw = Math.max(1, v.width), lh = Math.max(1, v.height);
   const footLines = textWidth(T("Market Manager — an original neighborhood market game. Plays offline."), "footer-text") > lw - 32 ? 2 : 1;
   return {
     lw, lh, sc, wide: lw >= 1024, phone: lw <= 700 && lh > lw, short: lh <= 500 && lw > lh,
@@ -526,7 +525,7 @@ function settingsScreen(w: number): void {
     ui.row(`${id}-row`, () => {
       para(label, inner - sw - 12, "body");
       ui.spacer();
-      const next = ui.style({ width: sw }).id(id).select(label, idx, options.map(([, l]) => l));
+      const next = ui.style({}).id(id).select(label, idx, options.map(([, l]) => l));
       if (next !== idx) applySettingsPatch({ [id === "set-theme" ? "theme" : id === "set-camera" ? "camera" : "colorblind"]: options[next]![0] || null });
     }, { width: inner, align: "center" });
   };

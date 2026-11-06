@@ -521,8 +521,8 @@ function nextAction(mode: Mode, id: string, won: boolean): Results["next"] {
 export function leaderboardLine(): string | null {
   const r = app.results?.lb;
   if (!r) return null;
-  if (r === "posting") return S("lbPosting");
-  return !r.posted ? S("lbNotPosted") : r.rank ? S("lbRank", { rank: r.rank }) : S("lbPosted");
+  if (r === "posting") return S("leaderboardPosting");
+  return !r.posted ? S("leaderboardNotPosted") : r.rank ? S("leaderboardRank", { rank: r.rank }) : S("leaderboardPosted");
 }
 export function onRetry(): void {
   if (!app.round) return;
@@ -585,7 +585,7 @@ export function onReplayTutorials(): void {
 export function copyInvite(): void {
   const link = platform.inviteLink();
   if (!link) return;
-  try { clipboard.writeText(link); toast([S("copied")], "good"); } catch { toast([S("copyFailed")], "bad"); }
+  try { clipboard.writeText(link); toast([S("inviteCopied")], "good"); } catch { toast([S("inviteFailed")], "bad"); }
 }
 export function signIn(): void { void requestSignIn().catch(() => undefined); }
 export function resetCamera(): void { render.resetCamera(); }

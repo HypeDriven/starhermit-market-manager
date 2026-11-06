@@ -36,7 +36,7 @@ sample dailies (each proven winnable by a greedy auto-player).
 - `src/rng.js`, `src/rules.js`, `src/content.js`, `src/session.js` — the
   seeded RNG, the pure deterministic rules engine, versioned content and
   sessions (undo, replay envelopes, progress, achievements)
-- `src/store.js` — the save document; `src/i18n.js`, `src/locales/` — nine locales
+- `src/store.js` — the save document; `assets/strings.json` — nine locales
 - `score-script.js` — the platform script that posts leaderboard scores
 - `server.js` — optional Node host with the legacy daily/score routes (not used by the client)
 - `spec.md` — the running design spec; `ARCHITECTURE.md` — module contracts
