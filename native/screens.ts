@@ -1,3 +1,6 @@
+import { localizedStyle as __l10nStyle } from "./l10n/font.ts";
+// localization-runtime:attached
+import { openLocalizedOptions as __l10nOptions } from "./l10n/menu.ts";
 // The browser build's semantic HTML shell (index.html + src/ui.js +
 // css/style.css) as starhermit:ui, built every frame: the page header and
 // footer, the title over its backdrop (Play, Daily market, All modes, How to
@@ -19,7 +22,28 @@
 // the bottom), portrait phones (≤ 700 px wide: the objective on its own
 // line, the stats wrapping, the HUD buttons in a bar at the bottom) and
 // short landscape (≤ 500 px tall: tighter stats without their labels).
-import { frame, openMenu } from "starhermit:engine";
+// The browser build's semantic HTML shell (index.html + src/ui.js +
+// css/style.css) as starhermit:ui, built every frame: the page header and
+// footer, the title over its backdrop (Play, Daily market, All modes, How to
+// play, Settings, Sign in / Invite, the daily chip, the player line, the
+// Journey summary), the mode cards, the stage grids, the shift briefing
+// (goals, length, rules, standing, the leaderboard preview), the HUD
+// (objective, moves, coins, time, guests, score, Undo / Hint / Staff /
+// Pause), the tutorial banner, the actions drawer of a picked shelf,
+// checkout or department, the staff drawer, the board summary, the
+// keyboard / gamepad action list (the old focusable board mirror), toasts,
+// the countdown, the pause menu (with the "while you were away" note), the
+// results (score breakdown, tiebreak, best, local rank, the leaderboard
+// line, achievements, Retry / Next / Mode select), How to play (the six rule
+// cards and the effective controls) and Settings (theme, camera, colour
+// vision, left-handed, haptics, Replay tutorials, and the runtime's Options
+// and key bindings for the rest).
+// The old media queries are layouts picked by the window's logical size:
+// wide (≥ 1024 px: drawers under the HUD), compact (< 1024 px: drawers at
+// the bottom), portrait phones (≤ 700 px wide: the objective on its own
+// line, the stats wrapping, the HUD buttons in a bar at the bottom) and
+// short landscape (≤ 500 px tall: tighter stats without their labels).
+import { frame } from "starhermit:engine";
 import { bindings, pointer, requestRebind } from "starhermit:input";
 import * as draw from "starhermit:draw";
 import * as ui from "starhermit:ui";
@@ -123,9 +147,9 @@ function button(b: Btn, width: number | null = null): boolean {
   if (width != null && buttonWidth(b.text, style) > width) {
     const inner = Math.max(20, width - 40);
     const align = style === "btn-wide" ? "start" : "center";
-    opts.content = () => { ui.style({ text: { align } }).paragraph(b.text, inner); };
+    opts.content = () => { ui.style(__l10nStyle({ text: { align } })).paragraph(b.text, inner); };
   }
-  let u = ui.style(style, s).id(b.id);
+  let u = ui.style(__l10nStyle(style), __l10nStyle(s)).id(b.id);
   if (b.reason) u = u.tooltip(b.reason);
   const hit = u.button(b.text, opts);
   if (hit && fresh()) { b.act(); return true; }
@@ -144,14 +168,14 @@ function flow(label: string, list: Btn[], width: number, gap = 8, align: "center
 /** Text up to `width` wide: one label when it fits, else a paragraph. */
 function para(text: string, width: number, cls = "body", id?: string): void {
   if (!text) return;
-  let u = ui.style(cls);
+  let u = ui.style(__l10nStyle(cls));
   if (id) u = u.id(id);
   if (textWidth(text, cls) <= width) u.label(text);
   else u.paragraph(text, width);
 }
 function heading(cls: string, text: string, width: number, id?: string): void {
   if (textWidth(text, cls, "heading") <= width) (id ? ui.id(id) : ui).style(cls).heading(text);
-  else ui.style(cls).paragraph(text, width);
+  else ui.style(__l10nStyle(cls)).paragraph(text, width);
 }
 function rect(r: { x: number; y: number; width: number; height: number }): void { hudRects.push({ x: r.x, y: r.y, width: r.width, height: r.height }); }
 
@@ -195,7 +219,7 @@ function chrome(L: Layout): void {
   const f = frame();
   const sa = f.safeArea;
   draw.box(0, 0, f.width, sa.top + HEADER_H * L.sc, "page");
-  ui.place("header", { anchor: "top-start", x: 16, y: 6 }, () => ui.style("app-title").label("Market Manager"));
+  ui.place("header", { anchor: "top-start", x: 16, y: 6 }, () => ui.style(__l10nStyle("app-title")).label("Market Manager"));
   rect({ x: 0, y: 0, width: f.width, height: sa.top + HEADER_H * L.sc });
   if (L.bottom > 0 && !(app.screen === "game" && L.phone)) {
     const h = L.bottom * L.sc + sa.bottom;
@@ -286,7 +310,7 @@ function modeScreen(w: number): void {
       const standing = platform.signedIn() && (m.id === "journey" || m.id === "challenge") ? T("Progress synced · posts to the platform leaderboard")
         : platform.signedIn() && (m.id === "daily" || m.id === "score") ? T("Personal best · posts to the platform leaderboard")
           : T(m.standingText);
-      const hit = ui.style("mode-card", { width: cw }).id(`mode-${m.id}`).button(T(m.name), {
+      const hit = ui.style(__l10nStyle("mode-card"), __l10nStyle({ width: cw })).id(`mode-${m.id}`).button(T(m.name), {
         content: () => {
           ui.column(`mode-${m.id}-c`, () => {
             para(T(m.name), inner, "card-h");
@@ -329,7 +353,7 @@ function stageScreen(w: number): void {
           else if (it.won) para(T("Cleared"), inner, "badge-won");
         }, { spacing: 2, width: inner });
       };
-      let u = ui.style("stage-card", { width: cw }).id(`stage-${it.id}`);
+      let u = ui.style(__l10nStyle("stage-card"), __l10nStyle({ width: cw })).id(`stage-${it.id}`);
       if (it.locked) u = u.tooltip(T("Finish earlier stages to unlock this one"));
       const hit = u.button(stageName(it.name), { disabled: it.locked, content: lines });
       if (hit && !it.locked && fresh()) onStageChosen(p.mode, it.id);
@@ -367,7 +391,7 @@ function setupScreen(w: number): void {
   para(`${goalSummary(config.goals)} · ${modeLabel(p.mode)}`, w, "lead", "setup-summary");
   if (config.blurb) para(T(config.blurb), w, "muted", "setup-blurb");
   ui.column("setup-goals", () => goalLinesFromConfig(config).forEach((t, i) => ui.row(`goal-${i}`, () => {
-    ui.style("body").label("•");
+    ui.style(__l10nStyle("body")).label("•");
     para(t, w - 40, "body");
   }, { spacing: 8, padding: { start: 10 } })), { spacing: 4, width: w });
   const facts: [string, string][] = [
@@ -381,15 +405,15 @@ function setupScreen(w: number): void {
   const termW = Math.max(144, ...facts.map(([k]) => textWidth(k, "dt") + 12));
   const side = w - termW >= 200;
   ui.column("setup-facts", () => facts.forEach(([k, v], i) => {
-    if (side) ui.row(`fact-${i}`, () => { ui.style("dt", { width: termW }).id(`fact-${i}-k`).label(k); para(v, w - termW, "dd", `fact-${i}-v`); }, { spacing: 0, align: "start" });
+    if (side) ui.row(`fact-${i}`, () => { ui.style(__l10nStyle("dt"), __l10nStyle({ width: termW })).id(`fact-${i}-k`).label(k); para(v, w - termW, "dd", `fact-${i}-v`); }, { spacing: 0, align: "start" });
     else ui.column(`fact-${i}`, () => { para(k, w, "dt", `fact-${i}-k`); para(v, w, "dd", `fact-${i}-v`); }, { spacing: 2 });
   }), { spacing: 6, width: w });
   if (app.board) {
     para(T(app.board.label), w, "muted", "setup-board-label");
     ui.column("setup-board", () => app.board!.entries.slice(0, 10).forEach((e, i) => ui.row(`board-${i}`, () => {
-      ui.style("board-rank").label(`#${e.rank != null ? e.rank : i + 1}`);
-      ui.style("body").label(` ${e.name || T("Player")} — `);
-      ui.style("strong").label(String(e.score != null ? e.score : 0));
+      ui.style(__l10nStyle("board-rank")).label(`#${e.rank != null ? e.rank : i + 1}`);
+      ui.style(__l10nStyle("body")).label(` ${e.name || T("Player")} — `);
+      ui.style(__l10nStyle("strong")).label(String(e.score != null ? e.score : 0));
     }, { spacing: 0, padding: { start: 22 } })), { spacing: 2, width: w });
   }
   flow("setup-btns", [
@@ -437,12 +461,12 @@ function resultsScreen(w: number): void {
     rows.forEach(([k, v], i) => ui.row(`score-${i}`, () => {
       para(k, w - 100, "score-th");
       ui.spacer();
-      ui.style("score-td").id(`score-${i}-v`).label(String(v));
+      ui.style(__l10nStyle("score-td")).id(`score-${i}-v`).label(String(v));
     }, { width: w, style: "score-row", align: "center" }));
     ui.row("score-total", () => {
-      ui.style("total-th").label(T("Total"));
+      ui.style(__l10nStyle("total-th")).label(T("Total"));
       ui.spacer();
-      ui.style("total-td").id("results-total").label(String(r.score.total));
+      ui.style(__l10nStyle("total-td")).id("results-total").label(String(r.score.total));
     }, { width: w, style: "score-foot", align: "center" });
   }, { spacing: 0, width: w });
   const tb = r.score.tiebreak;
@@ -502,7 +526,7 @@ function helpScreen(w: number): void {
     for (const r of HELP_RULES) {
       ui.column(`help-${r.icon}`, () => {
         ui.row(`help-${r.icon}-h`, () => {
-          ui.column(`help-${r.icon}-i`, () => ui.style("icon-text").label(r.icon), { style: "help-icon", align: "center", justify: "center", width: 28, height: 28 });
+          ui.column(`help-${r.icon}-i`, () => ui.style(__l10nStyle("icon-text")).label(r.icon), { style: "help-icon", align: "center", justify: "center", width: 28, height: 28 });
           para(T(r.title), inner - 36, "card-h");
         }, { spacing: 8, align: "center" });
         para(T(r.text), inner, "card-p");
@@ -525,7 +549,7 @@ function settingsScreen(w: number): void {
     ui.row(`${id}-row`, () => {
       para(label, inner - sw - 12, "body");
       ui.spacer();
-      const next = ui.style({}).id(id).select(label, idx, options.map(([, l]) => l));
+      const next = ui.style(__l10nStyle({})).id(id).select(label, idx, options.map(([, l]) => l));
       if (next !== idx) applySettingsPatch({ [id === "set-theme" ? "theme" : id === "set-camera" ? "camera" : "colorblind"]: options[next]![0] || null });
     }, { width: inner, align: "center" });
   };
@@ -539,14 +563,14 @@ function settingsScreen(w: number): void {
     para(T("Accessibility and controls"), inner, "card-h");
     const check = (id: string, key: "leftHanded" | "haptics", label: string): void => {
       const cur = !!s[key];
-      const next = ui.id(id).style({ width: inner }).checkbox(label, cur);
+      const next = ui.id(id).style(__l10nStyle({ width: inner })).checkbox(label, cur);
       if (next !== cur && fresh()) applySettingsPatch({ [key]: next });
     };
     check("set-left-handed", "leftHanded", T("Left-handed layout"));
     check("set-haptics", "haptics", T("Haptics"));
     para(T("Sound, graphics, language, larger text, high contrast and reduced motion are in the StarHermit Options."), inner, "muted", "options-note");
     flow("options-btns", [
-      { id: "btn-options", text: T("Open Options"), act: () => openMenu() },
+      { id: "btn-options", text: T("Open Options"), act: () => __l10nOptions() },
       { id: "btn-rebind", text: T("Key bindings"), act: () => requestRebind() },
     ], inner, 8, "start");
   }, { style: "fieldset", spacing: 10, width: w });
@@ -601,7 +625,7 @@ function arc(cx: number, cy: number, r: number): [number, number][] {
   return out;
 }
 function iconButton(id: string, label: string, kind: Icon, act: () => void, disabled = false): void {
-  const hit = ui.style("btn-icon").id(id).tooltip(label).button(label, {
+  const hit = ui.style(__l10nStyle("btn-icon")).id(id).tooltip(label).button(label, {
     disabled,
     content: () => ui.widget("", { role: "none", size: { width: 20, height: 20 }, draw: (r, ws) => drawIcon(kind, r, ws.highContrast ? ws.colors.text : disabled ? "#3d2b1f80" : "#3d2b1f") }),
   });
@@ -616,8 +640,8 @@ function hudButtons(): void {
 }
 function stat(id: string, label: string, value: string, L: Layout): void {
   ui.column(id, () => {
-    if (!L.short) ui.style("stat-label").label(label);
-    ui.style("stat-value").id(`${id}-v`).label(value);
+    if (!L.short) ui.style(__l10nStyle("stat-label")).label(label);
+    ui.style(__l10nStyle("stat-value")).id(`${id}-v`).label(value);
   }, { style: L.short ? "stat-tight" : "stat", spacing: 0 });
 }
 function statWidth(label: string, value: string, L: Layout): number {
@@ -646,7 +670,7 @@ function gameScreen(L: Layout): void {
   const objectiveBox = (maxW: number): void => {
     ui.column("hud-objective", () => {
       ui.column("objective-box", () => para(objective, maxW - 26, "objective-text", "hud-objective"), { style: "objective" });
-      if (moves) ui.column("moves-chip", () => ui.style("chip-text").id("hud-moves").label(moves), { style: "chip" });
+      if (moves) ui.column("moves-chip", () => ui.style(__l10nStyle("chip-text")).id("hud-moves").label(moves), { style: "chip" });
     }, { spacing: 6 });
   };
   const nButtons = r.session.allowUndo ? 4 : 3;
@@ -876,7 +900,7 @@ let mirrorWasClosed = true;
 function overlays(L: Layout): void {
   if (app.countdown) {
     const size = Math.min(144, Math.max(64, L.lw * 0.18));
-    ui.place("countdown", "center", () => ui.style("countdown", { text: { size } }).id("countdown-text").label(T(app.countdown![0])));
+    ui.place("countdown", "center", () => ui.style(__l10nStyle("countdown"), __l10nStyle({ text: { size } })).id("countdown-text").label(T(app.countdown![0])));
   }
   if (app.toasts.length) {
     const w = Math.min(L.lw * 0.8, 520);

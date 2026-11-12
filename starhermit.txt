@@ -42,3 +42,7 @@ engine.gamepad.undo=LeftShoulder
 engine.gamepad.camera=RightStickPress
 engine.gamepad.prev=DpadUp+DpadLeft+LeftStickUp+LeftStickLeft
 engine.gamepad.next=DpadDown+DpadRight+LeftStickDown+LeftStickRight
+
+# Game language (saved per player); Automatic follows the account/device.
+control.localization=F2 | Language
+engine.group.localization=Interface

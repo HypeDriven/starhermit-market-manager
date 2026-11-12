@@ -1,3 +1,4 @@
+import { withLanguageRender as __l10nRender } from "./l10n/menu.ts";
 // Market Manager on the StarHermit engine: the entry module (starhermit.txt
 // engine.entry), played natively by the StarHermit client and in browsers by
 // the engine's web runtime. The rules (src/rules.js), content
@@ -737,10 +738,14 @@ onUpdate((dt) => {
 });
 /** The HUD bands over the market (window pixels), set by screens.ts each frame: the room is framed between them. */
 export const view = { top: 0, bottom: 0 };
-onRender(() => {
+onRender(__l10nRender(() => {
   hudRects.length = 0;
   drawScreens();
   pointerInput();
   const f = frame();
   render.update(frameDt, f.width, f.height, view.top, view.bottom, f.scale);
-});
+}));
+
+// localization-runtime:menu
+import { installLanguageMenu as __installLanguageMenu } from "./l10n/menu.ts";
+__installLanguageMenu(false);
