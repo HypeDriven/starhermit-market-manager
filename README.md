@@ -1,5 +1,7 @@
 # Market Manager
 
+**[▶ Play Market Manager on StarHermit](https://dashboard.starhermit.com/play/71e72ebf-8c91-4ba8-892e-fd19479c7e82)**
+
 A bright isometric neighborhood market management game on the StarHermit
 engine. Stock displays, serve queues, hire staff, and unlock new departments
 through earned revenue.
