@@ -180,7 +180,7 @@ function heading(cls: string, text: string, width: number, id?: string): void {
 function rect(r: { x: number; y: number; width: number; height: number }): void { hudRects.push({ x: r.x, y: r.y, width: r.width, height: r.height }); }
 
 // ------------------------------------------------------------------ the frame
-export function drawScreens(): void {
+function drawScreensImmediate(): void {
   const L = layoutNow();
   const f = frame();
   const hc = ui.preferences().highContrast;
@@ -896,22 +896,11 @@ function boardMirror(L: Layout): void {
 let mirrorOpenedAt = 0;
 let mirrorWasClosed = true;
 
-/** The countdown and the toasts over the HUD (index.html #countdown, #toasts). */
+/** The countdown over the HUD (index.html #countdown). */
 function overlays(L: Layout): void {
   if (app.countdown) {
     const size = Math.min(144, Math.max(64, L.lw * 0.18));
     ui.place("countdown", "center", () => ui.style(__l10nStyle("countdown"), __l10nStyle({ text: { size } })).id("countdown-text").label(T(app.countdown![0])));
-  }
-  if (app.toasts.length) {
-    const w = Math.min(L.lw * 0.8, 520);
-    const bottom = (L.phone && app.screen === "game" ? 72 : 12) + (L.phone && app.screen === "game" ? 0 : L.bottom);
-    ui.place("toasts", { anchor: "bottom", y: bottom }, () => ui.column("toasts-col", () => {
-      app.toasts.forEach((t, i) => {
-        const mark = t.kind === "good" ? "✓ " : t.kind === "bad" ? "✕ " : "ⓘ ";
-        ui.column(`toast-${i}`, () => para(mark + T(t.msg[0], t.msg[1]), w - 36, t.kind === "info" ? "toast-text" : "toast-text-light", `toast-${i}-t`),
-          { style: t.kind === "good" ? "toast-good" : t.kind === "bad" ? "toast-bad" : "toast", align: "center" });
-      });
-    }, { spacing: 8, align: "center" }));
   }
 }
 
@@ -919,4 +908,11 @@ function overlays(L: Layout): void {
 export function pointerOnHud(): boolean {
   const p = pointer();
   return !!p && hudRects.some((r) => p.x >= r.x && p.y >= r.y && p.x <= r.x + r.width && p.y <= r.y + r.height);
+}
+
+export function drawScreens(): void {
+  if (app.screen !== "help") { drawScreensImmediate(); return; }
+  const actions = ["back","pause","hint","undo","camera","prev","next"];
+  const version = JSON.stringify([(app as any).settings ?? (app as any).options ?? {}, (platform as any).options ?? {}, actions.map((action) => bindings(action))]);
+  ui.retain!("help-screen", version, drawScreensImmediate);
 }

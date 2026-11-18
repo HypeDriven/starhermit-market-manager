@@ -84,8 +84,8 @@ export function announce(msg: Msg, assertive = false): void {
 }
 /** ui.js toast(): a pill at the bottom for 3.2 s, also announced. */
 export function toast(msg: Msg, kind: Toast["kind"] = "info"): void {
-  app.toasts.push({ msg, kind, until: now() + 3.2 });
-  if (app.toasts.length > 4) app.toasts.shift();
+  const mark = kind === "good" ? "✓ " : kind === "bad" ? "✕ " : "ⓘ ";
+  ui.toast!(mark + T(msg[0], msg[1]), { kind: kind === "bad" ? "error" : kind === "good" ? "success" : "info", duration: 3.2, position: "bottom", offset: app.screen === "game" ? 72 : 12 + view.bottom, style: kind === "good" ? "toast-good" : kind === "bad" ? "toast-bad" : "toast", dismissible: false });
   announce(msg, kind === "bad");
 }
 /** Timers on the game clock (the old setTimeout calls). */
