@@ -12,7 +12,7 @@
     "metadataSource": "starhermit.txt",
     "createdAt": "2026-09-01T07:01:03.55155+00:00",
     "coverArtSource": "manifest",
-    "coverArtUpdatedAt": "2026-11-18T17:51:56.739538+00:00",
+    "coverArtUpdatedAt": "2026-11-22T14:20:12.923469+00:00",
     "submittedByUserId": "2712e04e-461b-4d23-81ae-e40b429128a8",
     "submittedByUsername": "starhermit",
     "hosting": {
@@ -22,9 +22,9 @@
       "pinnedCommitSha": null,
       "deployedCommitSha": null,
       "deployError": null,
-      "deployedAt": "2026-11-18T17:51:56.728177+00:00",
+      "deployedAt": "2026-11-22T14:20:12.911771+00:00",
       "externalLaunchUrl": null,
-      "engineVersion": "1.44.1",
+      "engineVersion": "1.47.0",
       "deployWarning": null
     },
     "description": "Stock shelves, manage checkout queues, and invest in staff and upgrades during a busy market shift.",
@@ -36,19 +36,19 @@
     "links": [],
     "isDisabled": false
   },
-  "publishedAt": "2026-11-18T17:51:56.756Z",
-  "sourceCommit": "3226da049ba0ec96cfa8709b0f4cc1f1b3c7d397",
-  "bytesReceived": 3570842,
-  "archiveSha256": "eb2b9b458385a04059d3e42f64cbe78072c926db6b9892d2e6ba6ba424955d71",
+  "publishedAt": "2026-11-22T14:20:13.372Z",
+  "sourceCommit": "c843554a270030f0c2bd4251331016f56d8ad72f",
+  "bytesReceived": 3570612,
+  "archiveSha256": "e0170f33e10603168cba16ee25fb8133a078cbdf16896a5de741fbac03762b1a",
   "indexSha256": "2bfc19b86bb5ff1d5c05748e065226f30dda6cfa46914b87e132570ccee25aaf",
   "result": {
     "clientPublished": true,
     "serverImageLoaded": false,
     "imageDigest": null,
-    "bytesReceived": 3570842,
+    "bytesReceived": 3570612,
     "mode": "replace",
     "filesRemoved": 0,
-    "engineVersion": "1.44.1",
+    "engineVersion": "1.47.0",
     "deployWarning": null
   },
   "liveVerification": {
