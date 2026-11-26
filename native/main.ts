@@ -22,8 +22,8 @@ import { withLanguageRender as __l10nRender } from "./l10n/menu.ts";
 // (500 ms at 60 Hz) while a shift is active, so pauses, a hidden window and
 // slow frames never cost time and play scripts replay exactly.
 import "./i18n.ts";
-import { frame, levelSettings, onFixedUpdate, onPreferencesChange, onRender, onResume, onStart, onSuspend, onUpdate, preferences, setFixedRate, clipboard } from "starhermit:engine";
-import { onAction, onPointerButton, onPointerMove, onTouch, onWheel, vibrate } from "starhermit:input";
+import { frame, levelSettings, onFixedUpdate, onPreferencesChange, onRender, onResume, onStart, onSuspend, onUpdate, preferences, setFixedRate, setTargetFps, clipboard } from "starhermit:engine";
+import { onAction, onPointerButton, onPointerMove, onTouch, onWheel, primaryPointer, vibrate } from "starhermit:input";
 import * as ui from "starhermit:ui";
 import { onSessionEnded, requestSignIn } from "starhermit:platform";
 import {
@@ -728,9 +728,21 @@ onFixedUpdate(() => {
 });
 
 let frameDt = 0;
+/** The game's frame cap (host API 1.49 setTargetFps, set only on a change): 30 on the title (the
+ * market draws only on the game screen) and on phone levels (levelIndex <= 3) under a finger,
+ * where steady 33 ms frames beat 33/50 ms jitter; none otherwise. The engine sets it aside while
+ * its menus are open, and the player's frame-rate limit still applies. */
+let frameCap = -1;
+function capFrames(): void {
+  const cap = app.screen === "title" || (frame().levelIndex <= 3 && primaryPointer() === "coarse") ? 30 : 0;
+  if (cap === frameCap) return;
+  frameCap = cap;
+  setTargetFps(cap || null);
+}
 onUpdate((dt) => {
   frameDt = dt;
   applyLook();
+  capFrames();
   applyTokens(ui.preferences().highContrast, app.settings?.colorblind || "none");
   audio.update();
   const t = now();

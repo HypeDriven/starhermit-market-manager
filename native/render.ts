@@ -475,6 +475,7 @@ function buildGround(): void {
   groundMesh.rotation.x = -PI / 2;
   groundMesh.position.y = -DIM.floorH - 0.01;
   groundMesh.receiveShadow = true;
+  groundMesh.movable = false; // still scenery (host API 1.49): cached in shadow maps, skipped by the sync
   scene.add(groundMesh);
 }
 
@@ -499,6 +500,7 @@ function buildFloor(state: State, deco: () => number): void {
   });
   if (floorMesh.instanceColor) floorMesh.instanceColor.needsUpdate = true;
   floorMesh.userData.pick = { kind: "floor" };
+  floorMesh.movable = false; // tints change per instance only (STATIC_INSTANCES: stays static)
   marketGroup.add(floorMesh);
   interactive.push(floorMesh);
 }
@@ -519,6 +521,7 @@ function buildWalls(state: State): void {
     wallMesh!.setMatrixAt(i, m);
   });
   wallMesh.count = cells.length;
+  wallMesh.movable = false;
   marketGroup.add(wallMesh);
 }
 
@@ -552,6 +555,7 @@ function buildEntranceArch(state: State): void {
   }
   for (const p of [p1, p2, beam]) { p.castShadow = true; group.add(p); }
   group.position.set(wx + facing[0] * 0.3, 0, wz + facing[1] * 0.3);
+  group.movable = false;
   marketGroup.add(group);
 }
 
@@ -571,6 +575,7 @@ function buildStockroom(state: State, deco: () => number): void {
     group.add(crate);
   }
   group.position.set(wx, 0, wz);
+  group.movable = false;
   marketGroup.add(group);
 }
 
@@ -724,6 +729,7 @@ function buildContactDiscs(spots: [number, number, number][]): void {
     discMesh!.setMatrixAt(i, m);
   });
   discMesh.material.opacity = look && look.shadows > 0 ? 0.1 : 0.18;
+  discMesh.movable = false;
   marketGroup.add(discMesh);
 }
 
@@ -747,6 +753,7 @@ function buildStaffFigures(state: State): void {
 function buildProps(deco: () => number): void {
   propsGroup = new Group();
   propsGroup.visible = !!look?.detailed;
+  propsGroup.movable = false;
   marketGroup.add(propsGroup);
   const potMat = withDetail(phys(0xb56a4a, { roughness: 0.6 }), null, 0.4);
   const leafMat = std(0x4e8f4e, { roughness: 0.8 });
