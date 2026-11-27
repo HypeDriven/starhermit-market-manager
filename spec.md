@@ -13,7 +13,7 @@ short, and spend the takings on staff, upgrades and new departments before closi
 | Genre | Single-player real-time management / tycoon puzzle |
 | Players | 1, plus asynchronous leaderboards |
 | Session | 2–8 minutes per shift (120–240 ticks at 500 ms) |
-| Platforms | StarHermit engine 1.51.0 script game (host API 1.51, `engine.minor=51`): played natively by the StarHermit client and in desktop and mobile browsers by the engine's web runtime; portrait and landscape |
+| Platforms | StarHermit engine 1.53.0 script game (host API 1.53, `engine.minor=53`): played natively by the StarHermit client and in desktop and mobile browsers by the engine's web runtime; portrait and landscape |
 | Rendering | `starhermit:scene` orthographic isometric market under a `starhermit:ui` shell; an action list of every market command is an equal keyboard / gamepad play path |
 | Content id | 40 journey stages, 4 lessons, 5 challenges, 3 practice paces, 1 daily |
 
@@ -21,8 +21,8 @@ short, and spend the takings on staff, upgrades and new departments before closi
 
 | Path | Contents |
 |---|---|
-| `starhermit.txt` | Manifest: name, owner, `server=score-script.js`, cover, `launch=index.html`, `engine.entry=native/main.ts`, `engine.version=1.51.0`, `engine.minor=51`, capabilities (platform, storage, clipboard), the seven actions with keys and gamepad defaults. |
-| `index.html`, `starhermit-files.json` | The engine's web loader (pins engine 1.51.0 on wiki.starhermit.com by hash) and the package's file index, both written by `npm run package` — never edited by hand. |
+| `starhermit.txt` | Manifest: name, owner, `server=score-script.js`, cover, `launch=index.html`, `engine.entry=native/main.ts`, `engine.version=1.53.0`, `engine.minor=53`, capabilities (platform, storage, clipboard), the seven actions with keys and gamepad defaults. |
+| `index.html`, `starhermit-files.json` | The engine's web loader (pins engine 1.53.0 on wiki.starhermit.com by hash) and the package's file index, both written by `npm run package` — never edited by hand. |
 | `native/main.ts` | Entry module: the screen state machine, rounds, the fixed-step 500 ms tick, commands, picks, tutorials, hints, undo, results and posting, settings, keyboard / gamepad actions, pointer and touch routing, lifecycle. |
 | `native/screens.ts` | Every screen, the header and footer, the HUD, drawers, action list, toasts and countdown on `starhermit:ui`; the content strings `src/ui.js` held (refusal reasons, mode cards, help cards, stage names). |
 | `native/render.ts` | The market on `starhermit:scene`: geometry, people, effects, camera framing, picking, colour-vision palettes, the per-tier look and post effects. |
@@ -542,9 +542,9 @@ The string tables include complete regional variants for `fr-BE`, `de-BE`, `en-S
 
 <!-- regional-localization:end -->
 
-## Engine 1.51.0
+## Engine 1.53.0
 
-Browser play uses the StarHermit 1.51.0 web runtime on WebGPU, or WebGL 2 where WebGPU is missing. Automatic ray-traced shadows are enabled on supported Vulkan devices, with mapped-shadow fallbacks elsewhere. Packaging creates block-compressed runtime textures and compressed glTF copies, retaining original image fallbacks.
+Browser play uses the StarHermit 1.53.0 web runtime on WebGPU, or WebGL 2 where WebGPU is missing. Automatic ray-traced shadows are enabled on supported Vulkan devices, with mapped-shadow fallbacks elsewhere. Packaging creates block-compressed runtime textures and compressed glTF copies, retaining original image fallbacks.
 
 The help screen replays through retained native UI while its contents, options, layout and key bindings are unchanged.
 
@@ -552,8 +552,10 @@ Toasts use native engine stacking, styling, accessibility and lifetime managemen
 
 Browser rendering uses the engine's asynchronous pipeline creation so newly encountered materials do not stall the page. Native play retains the engine's synchronous pipeline behavior.
 
-**Frame rate (host API 1.51 `setTargetFps`).** The title (the market draws only on the game screen) and, under a finger (`primaryPointer() === "coarse"`), the phone graphics levels (`levelIndex` ≤ 3) cap the game at 30 frames a second, where steady 33 ms frames replace uneven ones; elsewhere there is no game cap. The rules tick on the fixed update, so play is unchanged. The engine sets the cap aside while its menus are open, and the player's Frame rate limit still applies.
+**Frame rate (host API 1.53 `setTargetFps`).** The title (the market draws only on the game screen) and, under a finger (`primaryPointer() === "coarse"`), the phone graphics levels (`levelIndex` ≤ 3) cap the game at 30 frames a second, where steady 33 ms frames replace uneven ones; elsewhere there is no game cap. The rules tick on the fixed update, so play is unchanged. The engine sets the cap aside while its menus are open, and the player's Frame rate limit still applies.
 
-**Still scenery (host API 1.51).** The ground, the tiled floor and the walls (instanced; tile tints change per instance only), the entrance arch, the stockroom crates, the contact discs and the planters are `movable = false`, so the renderer caches them in shadow maps from the first frame and the scene's sync skips their transforms; a new market builds new meshes. The shelf units and checkouts (they lift on hover), the customers, staff, rings and effects stay movable.
+**Still scenery (host API 1.53).** The ground, the tiled floor and the walls (instanced; tile tints change per instance only), the entrance arch, the stockroom crates, the contact discs and the planters are `movable = false`, so the renderer caches them in shadow maps from the first frame and the scene's sync skips their transforms; a new market builds new meshes. The shelf units and checkouts (they lift on hover), the customers, staff, rings and effects stay movable.
 
 Higher graphics tiers use native per-object motion blur for moving pieces and effects. Camera motion stays sharp, lower tiers omit the effect, and the runtime's Motion blur and Reduce motion preferences remain authoritative.
+
+On engine 1.53.0, browser play through WebGL 2 compiles a frame's shader programs together and holds that frame until they are linked, blends skinned meshes in one pass, reuses the window pass's depth, and uses a hardware WebGL 2 context when WebGPU's adapter is software.
