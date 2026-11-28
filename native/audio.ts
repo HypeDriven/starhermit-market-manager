@@ -37,7 +37,6 @@ export function loadSfx(): void {
   for (const name of new Set(Object.values(SFX))) {
     loadClip(`sfx/${name}.opus`).then((c) => { clips.set(name, c); }, (e: unknown) => console.warn(`sfx ${name}: ${String(e)}`));
   }
-  renderLoops();
 }
 
 /** src/audio.js playEvent(): one sound (a still-loading one is silent). */
@@ -161,7 +160,17 @@ function stopVoice(l: Loop): void {
 }
 
 /** Each frame once the mixer runs: the rendered loops playing. */
+let __bedsStarted = false;
+function startBeds(): void {
+  if (__bedsStarted) return;
+  __bedsStarted = true;
+  void (async () => {
+    renderLoops();
+  })();
+}
+
 export function update(): void {
+  startBeds();
   if (context.state !== "running") return;
   if (paused) return;
   // The ambience at the old ambience bus's default (0.5) over the music bus's (0.6).
